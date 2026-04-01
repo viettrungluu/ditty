@@ -135,6 +135,12 @@ Each step below is one self-contained commit. Every commit should compile (`go b
 
 ## Follow-up Items (post-MVP)
 
+### Near-term fixes
+- **Socket path length**: Unix domain sockets have a hard 108-byte path limit (both macOS and Linux). Workaround: `chdir` to `~/.ditty/sessions/` and use relative paths (just `NAME.sock`) when creating/connecting to sockets. This keeps paths short regardless of `$HOME` length.
+- **Pty echo control**: `continue` output includes the echoed input, which is noise for scripting. Add a `--echo`/`--no-echo` flag on `ditty start` (default: echo off) to control the pty's echo setting.
+- **Clean error for missing sessions**: `continue`/`stop`/`kill` on a nonexistent session gives a raw "connection refused" error. Should check for socket existence first and give a clear "session not found" message.
+
+### Features
 - **`--prompt=REGEX`**: Explicit prompt pattern for precise, zero-latency detection
 - **Built-in presets**: Auto-detect prompt patterns for python, node, gdb, lldb, etc.
 - **`--suspend` flag**: SIGSTOP/SIGCONT between commands for programs that tolerate it
@@ -145,3 +151,5 @@ Each step below is one self-contained commit. Every commit should compile (`go b
 - **Reconnect / attach**: `ditty attach` to get a live interactive session with the REPL
 - **Configurable TERM**: Set the TERM environment variable for the pty (default `xterm-256color` or similar)
 - **Scrollback / history**: `ditty history --name=NAME` to see past interactions
+- **Verbose daemon log file**: Write daemon logs to a file in the session dir so they're available even when not started with `-v`
+- **Install instructions**: Add `go install` / build instructions to README

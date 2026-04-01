@@ -19,6 +19,7 @@ func newStartCmd() *cobra.Command {
 	var name string
 	var idleTimeout time.Duration
 	var echo bool
+	var bufSize int
 
 	cmd := &cobra.Command{
 		Use:   "start [flags] PROGRAM [ARGS...]",
@@ -27,7 +28,7 @@ func newStartCmd() *cobra.Command {
 its initial output until the first prompt appears.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStart(name, idleTimeout, echo, args)
+			return runStart(name, idleTimeout, echo, bufSize, args)
 		},
 	}
 
@@ -37,12 +38,14 @@ its initial output until the first prompt appears.`,
 		"prompt detection idle timeout (e.g., 200ms, 1s); 0 means default")
 	cmd.Flags().BoolVar(&echo, "echo", false,
 		"echo input back in output (default: no echo)")
+	cmd.Flags().IntVar(&bufSize, "buffer-size", 0,
+		"background output ring buffer size in bytes (default: 1MB)")
 
 	return cmd
 }
 
 // runStart launches the daemon and streams initial output.
-func runStart(name string, idleTimeout time.Duration, echo bool, args []string) error {
+func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, args []string) error {
 	// Generate a name if not provided.
 	if name == "" {
 		var err error
@@ -80,6 +83,10 @@ func runStart(name string, idleTimeout time.Duration, echo bool, args []string) 
 	}
 	if echo {
 		daemonArgs = append(daemonArgs, "--echo")
+	}
+	if bufSize > 0 {
+		daemonArgs = append(daemonArgs, "--buffer-size",
+			fmt.Sprintf("%d", bufSize))
 	}
 	daemonArgs = append(daemonArgs, "--")
 	daemonArgs = append(daemonArgs, args...)

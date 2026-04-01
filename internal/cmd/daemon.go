@@ -15,6 +15,7 @@ func newDaemonCmd() *cobra.Command {
 	var name string
 	var idleTimeout time.Duration
 	var echo bool
+	var bufSize int
 
 	cmd := &cobra.Command{
 		Use:    "_daemon",
@@ -30,6 +31,7 @@ func newDaemonCmd() *cobra.Command {
 				Args:        args[1:],
 				IdleTimeout: idleTimeout,
 				Echo:        echo,
+				BufSize:     bufSize,
 			}
 			return daemon.Run(cfg)
 		},
@@ -39,6 +41,8 @@ func newDaemonCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&idleTimeout, "idle-timeout",
 		prompt.DefaultIdleTimeout, "prompt detection idle timeout")
 	cmd.Flags().BoolVar(&echo, "echo", false, "enable pty echo")
+	cmd.Flags().IntVar(&bufSize, "buffer-size", 0,
+		"ring buffer size in bytes (0 means default)")
 
 	return cmd
 }

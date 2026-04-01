@@ -2,10 +2,14 @@ package cmd
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
+	"github.com/viettrungluu/ditty/internal/dlog"
 	"github.com/viettrungluu/ditty/internal/protocol"
 	"github.com/viettrungluu/ditty/internal/session"
 )
@@ -48,6 +52,12 @@ func runContinue(name string, input string) error {
 	// Record as last-used session.
 	session.SetLast(name)
 
+	// Forward SIGINT to the REPL as an interrupt message.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT)
+	defer signal.Stop(sigCh)
+	go forwardInterrupts(conn, sigCh)
+
 	// Send the input.
 	if err := protocol.WriteMessage(conn, protocol.Message{
 		Type:    protocol.MsgInput,
@@ -79,6 +89,20 @@ func runContinue(name string, input string) error {
 			return nil
 		case protocol.MsgError:
 			return fmt.Errorf("daemon error: %s", msg.Payload)
+		}
+	}
+}
+
+// forwardInterrupts watches for SIGINT and sends interrupt messages to the
+// daemon. It runs until the signal channel is closed or the connection fails.
+func forwardInterrupts(conn net.Conn, sigCh <-chan os.Signal) {
+	for range sigCh {
+		dlog.Printf("continue: forwarding SIGINT as interrupt")
+		err := protocol.WriteMessage(conn, protocol.Message{
+			Type: protocol.MsgInterrupt,
+		})
+		if err != nil {
+			return
 		}
 	}
 }

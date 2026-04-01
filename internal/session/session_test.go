@@ -1,7 +1,6 @@
 package session
 
 import (
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -77,13 +76,7 @@ func TestListEmpty(t *testing.T) {
 }
 
 func TestListWithSockets(t *testing.T) {
-	// Use a short temp dir to stay within the Unix socket path length limit
-	// (108 bytes on macOS).
-	tmpDir, err := os.MkdirTemp("/tmp", "ditty-test-")
-	if err != nil {
-		t.Fatalf("MkdirTemp() error: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
 	dir, err := EnsureBaseDir()
@@ -91,11 +84,11 @@ func TestListWithSockets(t *testing.T) {
 		t.Fatalf("EnsureBaseDir() error: %v", err)
 	}
 
-	// Create a socket file that has a listener (alive).
-	sockPath := filepath.Join(dir, "alive.sock")
-	ln, err := net.Listen("unix", sockPath)
+	// Create a socket file that has a listener (alive), using
+	// ListenSocket to handle the path length limit.
+	ln, err := ListenSocket("alive")
 	if err != nil {
-		t.Fatalf("net.Listen() error: %v", err)
+		t.Fatalf("ListenSocket() error: %v", err)
 	}
 	defer ln.Close()
 
@@ -138,6 +131,30 @@ func TestListWithSockets(t *testing.T) {
 	}
 	if stale.Alive {
 		t.Error("expected stale to be not alive")
+	}
+}
+
+func TestListenDialSocket(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	ln, err := ListenSocket("roundtrip")
+	if err != nil {
+		t.Fatalf("ListenSocket() error: %v", err)
+	}
+	defer ln.Close()
+
+	// DialSocket should connect.
+	conn, err := DialSocket("roundtrip")
+	if err != nil {
+		t.Fatalf("DialSocket() error: %v", err)
+	}
+	conn.Close()
+
+	// DialSocket to nonexistent should fail.
+	_, err = DialSocket("nonexistent")
+	if err == nil {
+		t.Error("expected error dialing nonexistent socket")
 	}
 }
 

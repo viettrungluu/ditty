@@ -88,11 +88,7 @@ func resolveName(name string) (string, error) {
 
 // dialSession connects to a session's Unix domain socket.
 func dialSession(name string) (net.Conn, error) {
-	sockPath, err := session.SocketPath(name)
-	if err != nil {
-		return nil, err
-	}
-	conn, err := net.Dial("unix", sockPath)
+	conn, err := session.DialSocket(name)
 	if err != nil {
 		return nil, fmt.Errorf("connect to session %q: %w", name, err)
 	}

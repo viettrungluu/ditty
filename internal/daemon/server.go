@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/viettrungluu/ditty/internal/dlog"
@@ -17,21 +16,11 @@ type Server struct {
 
 // NewServer creates and starts a Unix socket server for the given session.
 func NewServer(name string, d *Daemon) (*Server, error) {
-	// Ensure the sessions directory exists.
-	if _, err := session.EnsureBaseDir(); err != nil {
-		return nil, err
-	}
-
-	sockPath, err := session.SocketPath(name)
+	ln, err := session.ListenSocket(name)
 	if err != nil {
 		return nil, err
 	}
-
-	ln, err := net.Listen("unix", sockPath)
-	if err != nil {
-		return nil, fmt.Errorf("listen on %s: %w", sockPath, err)
-	}
-	dlog.Printf("server: listening on %s", sockPath)
+	dlog.Printf("server: listening for session %q", name)
 
 	s := &Server{ln: ln, daemon: d}
 	go s.acceptLoop()

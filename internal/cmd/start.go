@@ -91,13 +91,8 @@ func runStart(name string, args []string) error {
 	// Release the child process so we don't become a zombie parent.
 	daemonCmd.Process.Release()
 
-	// Wait for the socket to appear.
-	sockPath, err := session.SocketPath(name)
-	if err != nil {
-		return err
-	}
-
-	conn, err := waitForSocket(sockPath, 5*time.Second)
+	// Wait for the daemon to start accepting connections.
+	conn, err := waitForSocket(name, 5*time.Second)
 	if err != nil {
 		return fmt.Errorf("waiting for daemon: %w", err)
 	}
@@ -112,16 +107,16 @@ func runStart(name string, args []string) error {
 	return streamUntilPrompt(conn)
 }
 
-// waitForSocket polls for the Unix socket to become available.
-func waitForSocket(sockPath string, timeout time.Duration) (net.Conn, error) {
+// waitForSocket polls for the session's Unix socket to become available.
+func waitForSocket(name string, timeout time.Duration) (net.Conn, error) {
 	deadline := time.Now().Add(timeout)
 	for {
-		conn, err := net.Dial("unix", sockPath)
+		conn, err := session.DialSocket(name)
 		if err == nil {
 			return conn, nil
 		}
 		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("timeout waiting for socket %s", sockPath)
+			return nil, fmt.Errorf("timeout waiting for session %q", name)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}

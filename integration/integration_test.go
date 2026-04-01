@@ -34,18 +34,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// shortTempDir creates a short temporary directory under /tmp to keep Unix
-// socket paths within the 108-byte limit on macOS.
-func shortTempDir(t *testing.T) string {
-	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "dt-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
-	return dir
-}
-
 // runDitty runs ditty with the given arguments and returns stdout.
 // It uses a temporary HOME to isolate sessions.
 func runDitty(t *testing.T, home string, timeout time.Duration, args ...string) (string, error) {
@@ -80,7 +68,7 @@ func TestStartContinueStop(t *testing.T) {
 		t.Skip("python3 not found in PATH")
 	}
 
-	home := shortTempDir(t)
+	home := t.TempDir()
 	timeout := 10 * time.Second
 
 	// Start a Python session.
@@ -153,7 +141,7 @@ func TestKill(t *testing.T) {
 		t.Skip("python3 not found in PATH")
 	}
 
-	home := shortTempDir(t)
+	home := t.TempDir()
 	timeout := 10 * time.Second
 
 	// Start and then kill.
@@ -186,7 +174,7 @@ func TestLastUsedSession(t *testing.T) {
 		t.Skip("python3 not found in PATH")
 	}
 
-	home := shortTempDir(t)
+	home := t.TempDir()
 	timeout := 10 * time.Second
 
 	// Start a session (sets it as last-used).
@@ -213,7 +201,7 @@ func TestAutoGenerateName(t *testing.T) {
 		t.Skip("python3 not found in PATH")
 	}
 
-	home := shortTempDir(t)
+	home := t.TempDir()
 	timeout := 10 * time.Second
 
 	// Start without --name should generate and print a name.

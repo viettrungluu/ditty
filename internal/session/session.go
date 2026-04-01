@@ -3,6 +3,10 @@
 // Each session has a Unix domain socket at ~/.ditty/sessions/NAME.sock and
 // a metadata directory at ~/.ditty/sessions/NAME/. Session discovery works
 // by scanning the sessions directory for socket files and checking liveness.
+//
+// Unix domain sockets have a hard 108-byte path limit (both macOS and Linux).
+// To avoid exceeding this, socket operations chdir to the sessions directory
+// and use relative paths (just "NAME.sock").
 package session
 
 import (
@@ -12,8 +16,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
+
+// socketMu serializes chdir-based socket operations. Go's os.Chdir changes
+// the process-wide working directory, so concurrent socket operations must
+// not interleave their chdir calls.
+var socketMu sync.Mutex
 
 // BaseDir returns the base directory for all ditty sessions.
 // Defaults to ~/.ditty/sessions.
@@ -37,13 +47,81 @@ func EnsureBaseDir() (string, error) {
 	return dir, nil
 }
 
-// SocketPath returns the path to a session's Unix domain socket.
+// SocketPath returns the full path to a session's Unix domain socket.
+// This is used for file operations (stat, remove) but not for
+// net.Listen/net.Dial (use ListenSocket/DialSocket instead).
 func SocketPath(name string) (string, error) {
 	dir, err := BaseDir()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(dir, name+".sock"), nil
+}
+
+// socketName returns the short relative socket filename for a session.
+func socketName(name string) string {
+	return name + ".sock"
+}
+
+// ListenSocket creates a Unix domain socket listener for the named session.
+// It uses chdir to keep the socket path short, avoiding the 108-byte limit.
+func ListenSocket(name string) (net.Listener, error) {
+	dir, err := EnsureBaseDir()
+	if err != nil {
+		return nil, err
+	}
+
+	socketMu.Lock()
+	defer socketMu.Unlock()
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("getwd: %w", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		return nil, fmt.Errorf("chdir to sessions dir: %w", err)
+	}
+	ln, listenErr := net.Listen("unix", socketName(name))
+	// Always restore the working directory, even if Listen failed.
+	if err := os.Chdir(origDir); err != nil {
+		if ln != nil {
+			ln.Close()
+		}
+		return nil, fmt.Errorf("restore working directory: %w", err)
+	}
+	if listenErr != nil {
+		return nil, fmt.Errorf("listen on %s: %w", socketName(name), listenErr)
+	}
+	return ln, nil
+}
+
+// DialSocket connects to a session's Unix domain socket.
+// It uses chdir to keep the socket path short, avoiding the 108-byte limit.
+func DialSocket(name string) (net.Conn, error) {
+	dir, err := BaseDir()
+	if err != nil {
+		return nil, err
+	}
+
+	socketMu.Lock()
+	defer socketMu.Unlock()
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("getwd: %w", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		return nil, fmt.Errorf("chdir to sessions dir: %w", err)
+	}
+	conn, dialErr := net.DialTimeout("unix", socketName(name),
+		5*time.Second)
+	if err := os.Chdir(origDir); err != nil {
+		if conn != nil {
+			conn.Close()
+		}
+		return nil, fmt.Errorf("restore working directory: %w", err)
+	}
+	return conn, dialErr
 }
 
 // GenerateName produces a short random session name.
@@ -59,11 +137,7 @@ func GenerateName() (string, error) {
 // IsAlive checks whether a session is alive by attempting to connect to its
 // Unix domain socket with a short timeout.
 func IsAlive(name string) bool {
-	sockPath, err := SocketPath(name)
-	if err != nil {
-		return false
-	}
-	conn, err := net.DialTimeout("unix", sockPath, 500*time.Millisecond)
+	conn, err := DialSocket(name)
 	if err != nil {
 		return false
 	}
@@ -141,13 +215,12 @@ func GetLast() (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-// Cleanup removes a session's socket file and metadata directory.
+// Cleanup removes a session's socket file.
 func Cleanup(name string) error {
 	sockPath, err := SocketPath(name)
 	if err != nil {
 		return err
 	}
-	// Remove socket file (ignore if already gone).
 	os.Remove(sockPath)
 	return nil
 }

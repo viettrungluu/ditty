@@ -237,7 +237,8 @@ func (d *Daemon) HandleKill(c *clientConn) {
 }
 
 // SetClient registers a client connection. Any buffered output is flushed
-// to the client. Returns an error if a client is already connected.
+// to the client and a prompt detector is started. Returns an error if a
+// client is already connected.
 func (d *Daemon) SetClient(c *clientConn) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -247,10 +248,24 @@ func (d *Daemon) SetClient(c *clientConn) error {
 	}
 	d.client = c
 
-	// Flush buffered output to the new client.
+	// Start a prompt detector so that initial output (or buffered output)
+	// can trigger prompt detection even before the client sends input.
+	if d.detector != nil {
+		d.detector.Stop()
+	}
+	d.detector = prompt.NewDetector(d.cfg.IdleTimeout, func() {
+		d.mu.Lock()
+		if d.client == c {
+			c.sendPromptDetected()
+		}
+		d.mu.Unlock()
+	})
+
+	// Flush buffered output to the new client and feed the detector.
 	buffered := d.buf.ReadAll()
 	if len(buffered) > 0 {
 		c.sendBuffered(buffered)
+		d.detector.Feed(buffered)
 	}
 
 	return nil

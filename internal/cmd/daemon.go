@@ -14,6 +14,7 @@ import (
 func newDaemonCmd() *cobra.Command {
 	var name string
 	var idleTimeout time.Duration
+	var echo bool
 
 	cmd := &cobra.Command{
 		Use:    "_daemon",
@@ -28,6 +29,7 @@ func newDaemonCmd() *cobra.Command {
 				Command:     args[0],
 				Args:        args[1:],
 				IdleTimeout: idleTimeout,
+				Echo:        echo,
 			}
 			return daemon.Run(cfg)
 		},
@@ -36,6 +38,7 @@ func newDaemonCmd() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "session name")
 	cmd.Flags().DurationVar(&idleTimeout, "idle-timeout",
 		prompt.DefaultIdleTimeout, "prompt detection idle timeout")
+	cmd.Flags().BoolVar(&echo, "echo", false, "enable pty echo")
 
 	return cmd
 }

@@ -18,6 +18,7 @@ import (
 func newStartCmd() *cobra.Command {
 	var name string
 	var idleTimeout time.Duration
+	var echo bool
 
 	cmd := &cobra.Command{
 		Use:   "start [flags] PROGRAM [ARGS...]",
@@ -26,7 +27,7 @@ func newStartCmd() *cobra.Command {
 its initial output until the first prompt appears.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStart(name, idleTimeout, args)
+			return runStart(name, idleTimeout, echo, args)
 		},
 	}
 
@@ -34,12 +35,14 @@ its initial output until the first prompt appears.`,
 		"session name (generated if omitted)")
 	cmd.Flags().DurationVar(&idleTimeout, "idle-timeout", 0,
 		"prompt detection idle timeout (e.g., 200ms, 1s); 0 means default")
+	cmd.Flags().BoolVar(&echo, "echo", false,
+		"echo input back in output (default: no echo)")
 
 	return cmd
 }
 
 // runStart launches the daemon and streams initial output.
-func runStart(name string, idleTimeout time.Duration, args []string) error {
+func runStart(name string, idleTimeout time.Duration, echo bool, args []string) error {
 	// Generate a name if not provided.
 	if name == "" {
 		var err error
@@ -74,6 +77,9 @@ func runStart(name string, idleTimeout time.Duration, args []string) error {
 	if idleTimeout > 0 {
 		daemonArgs = append(daemonArgs, "--idle-timeout",
 			idleTimeout.String())
+	}
+	if echo {
+		daemonArgs = append(daemonArgs, "--echo")
 	}
 	daemonArgs = append(daemonArgs, "--")
 	daemonArgs = append(daemonArgs, args...)

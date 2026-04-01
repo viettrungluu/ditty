@@ -35,6 +35,9 @@ type Config struct {
 	IdleTimeout time.Duration
 	// BufSize is the ring buffer capacity in bytes.
 	BufSize int
+	// Echo controls whether the pty echoes input back. When false (the
+	// default), input sent via continue is not echoed in the output.
+	Echo bool
 }
 
 // Daemon manages a single REPL session.
@@ -45,10 +48,11 @@ type Daemon struct {
 	buf    *ringbuf.RingBuf
 	server *Server
 
-	// mu protects client and detector.
-	mu       sync.Mutex
-	client   *clientConn // currently connected client, or nil
-	detector *prompt.Detector
+	// mu protects client, detector, and echoStrip.
+	mu        sync.Mutex
+	client    *clientConn // currently connected client, or nil
+	detector  *prompt.Detector
+	echoStrip string // when non-empty, strip this from the next output chunk
 
 	done chan struct{} // closed when the daemon should exit
 }
@@ -150,12 +154,17 @@ func (d *Daemon) handleOutput(data []byte) {
 		len(data), d.client != nil, d.detector != nil)
 
 	if d.client != nil {
-		// Stream to connected client.
-		if err := d.client.sendOutput(data); err != nil {
-			dlog.Printf("daemon: client send error: %v", err)
+		// Strip echoed input if configured.
+		data = d.stripEcho(data)
+
+		// Stream to connected client (if any data remains).
+		if len(data) > 0 {
+			if err := d.client.sendOutput(data); err != nil {
+				dlog.Printf("daemon: client send error: %v", err)
+			}
 		}
 		// Feed the prompt detector.
-		if d.detector != nil {
+		if d.detector != nil && len(data) > 0 {
 			d.detector.Feed(data)
 		}
 	} else {
@@ -198,6 +207,16 @@ func (d *Daemon) HandleInput(c *clientConn, data []byte) {
 	})
 
 	d.mu.Unlock()
+
+	// When echo suppression is active, set up a filter to strip the
+	// echoed input from the output.
+	if !d.cfg.Echo {
+		plainInput := string(data)
+		if len(plainInput) > 0 && plainInput[len(plainInput)-1] == '\n' {
+			plainInput = plainInput[:len(plainInput)-1]
+		}
+		d.echoStrip = plainInput
+	}
 
 	// Write the input to the pty (with a trailing newline if not present).
 	input := data
@@ -305,6 +324,47 @@ func (d *Daemon) ClearClient(c *clientConn) {
 		}
 		d.client = nil
 	}
+}
+
+// stripEcho removes the echoed input from the beginning of output data.
+// The pty echoes each input line followed by \r\n. This handles the echo
+// arriving across multiple output chunks. Caller must hold d.mu.
+func (d *Daemon) stripEcho(data []byte) []byte {
+	if d.echoStrip == "" {
+		return data
+	}
+
+	expect := d.echoStrip
+	s := string(data)
+
+	// Match the expected echo prefix.
+	i := 0
+	for i < len(s) && i < len(expect) {
+		if s[i] != expect[i] {
+			// Mismatch — abandon echo stripping.
+			d.echoStrip = ""
+			return data
+		}
+		i++
+	}
+
+	if i < len(expect) {
+		// Partial match — entire chunk is echo, wait for more.
+		d.echoStrip = expect[i:]
+		return nil
+	}
+
+	// Full match. Clear the strip target and skip trailing \r\n.
+	d.echoStrip = ""
+	rest := s[i:]
+	for len(rest) > 0 && (rest[0] == '\r' || rest[0] == '\n') {
+		rest = rest[1:]
+	}
+
+	if len(rest) == 0 {
+		return nil
+	}
+	return []byte(rest)
 }
 
 // exitCodeFrom extracts an exit code from a process wait error.

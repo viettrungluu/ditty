@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"strings"
 
@@ -34,27 +33,15 @@ streams output until the next prompt appears.`,
 
 // runContinue sends input to a session and streams output.
 func runContinue(name string, input string) error {
-	// Resolve session name.
-	if name == "" {
-		var err error
-		name, err = session.GetLast()
-		if err != nil {
-			return err
-		}
-		if name == "" {
-			return fmt.Errorf("no session name given and no last-used session")
-		}
-	}
-
-	// Connect to the session.
-	sockPath, err := session.SocketPath(name)
+	var err error
+	name, err = resolveName(name)
 	if err != nil {
 		return err
 	}
 
-	conn, err := net.Dial("unix", sockPath)
+	conn, err := dialSession(name)
 	if err != nil {
-		return fmt.Errorf("connect to session %q: %w", name, err)
+		return err
 	}
 	defer conn.Close()
 

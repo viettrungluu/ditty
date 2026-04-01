@@ -16,5 +16,7 @@ and lets you send input and receive output through simple CLI commands.`,
 		SilenceErrors: true,
 	}
 
+	cmd.AddCommand(newDaemonCmd())
+
 	return cmd
 }

@@ -219,26 +219,20 @@ func (d *Daemon) HandleInterrupt() {
 	}
 }
 
-// HandleStop gracefully terminates the REPL by sending EOF (closing the pty
-// master) and waiting for the process to exit. If the child doesn't exit
-// promptly, it is killed.
+// HandleStop gracefully terminates the REPL by sending SIGTERM and waiting
+// for the process to exit. Output continues to be piped to the client
+// during shutdown. If the child doesn't exit within the timeout, it is
+// force-killed.
 func (d *Daemon) HandleStop(c *clientConn) {
-	dlog.Printf("daemon: stopping session")
-	d.ptmx.Close()
+	dlog.Printf("daemon: stopping session, sending SIGTERM")
+	d.cmd.Process.Signal(syscall.SIGTERM)
 
-	// Give the child a chance to exit gracefully, then escalate.
+	// If the child doesn't exit in time, escalate to SIGKILL.
 	go func() {
 		select {
 		case <-d.done:
 			return
-		case <-time.After(1 * time.Second):
-			dlog.Printf("daemon: child didn't exit after pty close, sending SIGTERM")
-			d.cmd.Process.Signal(syscall.SIGTERM)
-		}
-		select {
-		case <-d.done:
-			return
-		case <-time.After(3 * time.Second):
+		case <-time.After(5 * time.Second):
 			dlog.Printf("daemon: child didn't exit after SIGTERM, sending SIGKILL")
 			d.cmd.Process.Kill()
 		}

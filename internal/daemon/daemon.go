@@ -9,7 +9,6 @@ package daemon
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/creack/pty/v2"
+	"github.com/viettrungluu/ditty/internal/dlog"
 	"github.com/viettrungluu/ditty/internal/prompt"
 	"github.com/viettrungluu/ditty/internal/ringbuf"
 	"github.com/viettrungluu/ditty/internal/session"
@@ -66,6 +66,9 @@ func Run(cfg Config) error {
 		buf:  ringbuf.New(cfg.BufSize),
 		done: make(chan struct{}),
 	}
+
+	dlog.Printf("daemon: starting session %q, command=%s args=%v",
+		cfg.Name, cfg.Command, cfg.Args)
 
 	// Start the REPL on a pty.
 	if err := d.startREPL(); err != nil {
@@ -131,7 +134,7 @@ func (d *Daemon) readLoop() {
 		}
 		if err != nil {
 			if err != io.EOF {
-				log.Printf("pty read error: %v", err)
+				dlog.Printf("pty read error: %v", err)
 			}
 			return
 		}
@@ -143,10 +146,13 @@ func (d *Daemon) handleOutput(data []byte) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	dlog.Printf("daemon: output %d bytes, client=%v, detector=%v",
+		len(data), d.client != nil, d.detector != nil)
+
 	if d.client != nil {
 		// Stream to connected client.
 		if err := d.client.sendOutput(data); err != nil {
-			log.Printf("client send error: %v", err)
+			dlog.Printf("daemon: client send error: %v", err)
 		}
 		// Feed the prompt detector.
 		if d.detector != nil {
@@ -199,7 +205,7 @@ func (d *Daemon) HandleInput(c *clientConn, data []byte) {
 		input = append(input, '\n')
 	}
 	if _, err := d.ptmx.Write(input); err != nil {
-		log.Printf("pty write error: %v", err)
+		dlog.Printf("pty write error: %v", err)
 		d.mu.Lock()
 		c.sendError(fmt.Sprintf("pty write: %v", err))
 		d.mu.Unlock()
@@ -209,7 +215,7 @@ func (d *Daemon) HandleInput(c *clientConn, data []byte) {
 // HandleInterrupt writes Ctrl-C (\x03) to the pty.
 func (d *Daemon) HandleInterrupt() {
 	if _, err := d.ptmx.Write([]byte{0x03}); err != nil {
-		log.Printf("pty write interrupt error: %v", err)
+		dlog.Printf("pty write interrupt error: %v", err)
 	}
 }
 
@@ -244,8 +250,10 @@ func (d *Daemon) SetClient(c *clientConn) error {
 	defer d.mu.Unlock()
 
 	if d.client != nil {
+		dlog.Printf("daemon: rejecting client, another already connected")
 		return fmt.Errorf("another client is already connected")
 	}
+	dlog.Printf("daemon: client connected")
 	d.client = c
 
 	// Start a prompt detector so that initial output (or buffered output)
@@ -277,6 +285,7 @@ func (d *Daemon) ClearClient(c *clientConn) {
 	defer d.mu.Unlock()
 
 	if d.client == c {
+		dlog.Printf("daemon: client disconnected")
 		if d.detector != nil {
 			d.detector.Stop()
 			d.detector = nil

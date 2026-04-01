@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/viettrungluu/ditty/internal/dlog"
 	"github.com/viettrungluu/ditty/internal/protocol"
 	"github.com/viettrungluu/ditty/internal/session"
 )
@@ -62,14 +63,24 @@ func runStart(name string, args []string) error {
 	}
 
 	// Build the _daemon command.
-	daemonArgs := []string{"_daemon", "--name", name, "--"}
+	daemonArgs := []string{}
+	if dlog.Verbose() {
+		daemonArgs = append(daemonArgs, "--verbose")
+	}
+	daemonArgs = append(daemonArgs, "_daemon", "--name", name, "--")
 	daemonArgs = append(daemonArgs, args...)
 
 	daemonCmd := exec.Command(self, daemonArgs...)
-	// Detach stdin/stdout/stderr so the daemon runs independently.
+	// Detach stdin/stdout so the daemon runs independently.
 	daemonCmd.Stdin = nil
 	daemonCmd.Stdout = nil
-	daemonCmd.Stderr = nil
+	// When verbose, inherit stderr so daemon logs are visible to the
+	// user. Otherwise detach completely.
+	if dlog.Verbose() {
+		daemonCmd.Stderr = os.Stderr
+	} else {
+		daemonCmd.Stderr = nil
+	}
 	// Start in a new process group so the daemon survives the parent.
 	daemonCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 

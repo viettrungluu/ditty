@@ -2,9 +2,9 @@ package daemon
 
 import (
 	"fmt"
-	"log"
 	"net"
 
+	"github.com/viettrungluu/ditty/internal/dlog"
 	"github.com/viettrungluu/ditty/internal/protocol"
 	"github.com/viettrungluu/ditty/internal/session"
 )
@@ -31,6 +31,7 @@ func NewServer(name string, d *Daemon) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listen on %s: %w", sockPath, err)
 	}
+	dlog.Printf("server: listening on %s", sockPath)
 
 	s := &Server{ln: ln, daemon: d}
 	go s.acceptLoop()
@@ -78,6 +79,9 @@ func (s *Server) handleConn(conn net.Conn) {
 			return
 		}
 
+		dlog.Printf("server: received message type=%d len=%d",
+			msg.Type, len(msg.Payload))
+
 		switch msg.Type {
 		case protocol.MsgInput:
 			s.daemon.HandleInput(c, msg.Payload)
@@ -88,7 +92,7 @@ func (s *Server) handleConn(conn net.Conn) {
 		case protocol.MsgKill:
 			s.daemon.HandleKill(c)
 		default:
-			log.Printf("unknown message type from client: %d", msg.Type)
+			dlog.Printf("server: unknown message type: %d", msg.Type)
 		}
 	}
 }

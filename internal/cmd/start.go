@@ -17,6 +17,7 @@ import (
 // newStartCmd creates the `ditty start` subcommand.
 func newStartCmd() *cobra.Command {
 	var name string
+	var idleTimeout time.Duration
 
 	cmd := &cobra.Command{
 		Use:   "start [flags] PROGRAM [ARGS...]",
@@ -25,18 +26,20 @@ func newStartCmd() *cobra.Command {
 its initial output until the first prompt appears.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStart(name, args)
+			return runStart(name, idleTimeout, args)
 		},
 	}
 
 	cmd.Flags().StringVar(&name, "name", "",
 		"session name (generated if omitted)")
+	cmd.Flags().DurationVar(&idleTimeout, "idle-timeout", 0,
+		"prompt detection idle timeout (e.g., 200ms, 1s); 0 means default")
 
 	return cmd
 }
 
 // runStart launches the daemon and streams initial output.
-func runStart(name string, args []string) error {
+func runStart(name string, idleTimeout time.Duration, args []string) error {
 	// Generate a name if not provided.
 	if name == "" {
 		var err error
@@ -67,7 +70,12 @@ func runStart(name string, args []string) error {
 	if dlog.Verbose() {
 		daemonArgs = append(daemonArgs, "--verbose")
 	}
-	daemonArgs = append(daemonArgs, "_daemon", "--name", name, "--")
+	daemonArgs = append(daemonArgs, "_daemon", "--name", name)
+	if idleTimeout > 0 {
+		daemonArgs = append(daemonArgs, "--idle-timeout",
+			idleTimeout.String())
+	}
+	daemonArgs = append(daemonArgs, "--")
 	daemonArgs = append(daemonArgs, args...)
 
 	daemonCmd := exec.Command(self, daemonArgs...)

@@ -4,6 +4,20 @@
 
 It runs an interactive program in the background and lets you send input and receive output through simple CLI commands, making it easy to script interactions with programs like `python3`, `gdb`, `lldb`, and others.
 
+## Install
+
+```
+go install github.com/viettrungluu/ditty@latest
+```
+
+Or build from source:
+
+```
+git clone https://github.com/viettrungluu/ditty.git
+cd ditty
+go build -o ditty .
+```
+
 ## Usage
 
 ```

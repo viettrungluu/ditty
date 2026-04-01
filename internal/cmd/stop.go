@@ -87,10 +87,20 @@ func resolveName(name string) (string, error) {
 }
 
 // dialSession connects to a session's Unix domain socket.
+// It checks for the socket file first and gives a clear error if the
+// session doesn't exist.
 func dialSession(name string) (net.Conn, error) {
+	sockPath, err := session.SocketPath(name)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(sockPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("session %q not found", name)
+	}
 	conn, err := session.DialSocket(name)
 	if err != nil {
-		return nil, fmt.Errorf("connect to session %q: %w", name, err)
+		return nil, fmt.Errorf("session %q exists but is not responding "+
+			"(stale socket?): %w", name, err)
 	}
 	return conn, nil
 }

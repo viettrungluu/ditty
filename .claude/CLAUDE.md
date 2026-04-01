@@ -15,6 +15,10 @@
 - We expect high unit test coverage (90%+).
 - We like invariants to be asserted: `if !condition { panic("invariant violated: ...") }`. These branches do not need to be tested — they are invariants.
 
+## Claude Working Directory
+
+- Write plans and memories to the `claude/` directory (not `.claude/`), so they can be committed.
+
 ## Best Practices
 
 - Commits should be small and focused. Do one thing at a time (e.g., fix one bug). If another issue is found in the process, do it as a follow-up.

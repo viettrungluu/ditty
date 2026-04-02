@@ -13,8 +13,22 @@ func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ditty",
 		Short: "Convert line-interactive programs into command-line programs",
-		Long: `ditty runs interactive programs (REPLs, debuggers, etc.) in the background
-and lets you send input and receive output through simple CLI commands.`,
+		Long: `ditty ("de-TTY") runs interactive programs (REPLs, debuggers, etc.) in the
+background and lets you send input and receive output through simple CLI commands.
+
+Examples:
+  ditty start --name=py python3
+  ditty continue --name=py 'print("hello")'
+  ditty continue --name=py 'x = 42'
+  ditty continue --name=py 'print(x * 2)'
+  ditty list
+  ditty stop --name=py
+
+  ditty start --name=db gdb ./a.out
+  ditty continue --name=db 'break main'
+  ditty continue --name=db 'run'
+
+Full documentation: https://github.com/viettrungluu/ditty/blob/main/README.md`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {

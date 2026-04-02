@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -38,6 +39,8 @@ type Config struct {
 	// Echo controls whether the pty echoes input back. When false (the
 	// default), input sent via continue is not echoed in the output.
 	Echo bool
+	// PromptRegex, if set, is a compiled regex for prompt detection.
+	PromptRegex *regexp.Regexp
 }
 
 // Daemon manages a single REPL session.
@@ -208,7 +211,7 @@ func (d *Daemon) HandleInput(c *clientConn, data []byte) {
 	if d.detector != nil {
 		d.detector.Stop()
 	}
-	d.detector = prompt.NewDetector(d.cfg.IdleTimeout, func() {
+	d.detector = prompt.NewDetector(d.promptConfig(), func() {
 		d.mu.Lock()
 		if d.client == c {
 			c.sendPromptDetected()
@@ -303,7 +306,7 @@ func (d *Daemon) SetClient(c *clientConn) error {
 	if d.detector != nil {
 		d.detector.Stop()
 	}
-	d.detector = prompt.NewDetector(d.cfg.IdleTimeout, func() {
+	d.detector = prompt.NewDetector(d.promptConfig(), func() {
 		d.mu.Lock()
 		if d.client == c {
 			c.sendPromptDetected()
@@ -375,6 +378,14 @@ func (d *Daemon) stripEcho(data []byte) []byte {
 		return nil
 	}
 	return []byte(rest)
+}
+
+// promptConfig builds a prompt.Config from the daemon configuration.
+func (d *Daemon) promptConfig() prompt.Config {
+	return prompt.Config{
+		IdleTimeout: d.cfg.IdleTimeout,
+		PromptRegex: d.cfg.PromptRegex,
+	}
 }
 
 // exitCodeFrom extracts an exit code from a process wait error.

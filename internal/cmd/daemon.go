@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,6 +17,7 @@ func newDaemonCmd() *cobra.Command {
 	var idleTimeout time.Duration
 	var echo bool
 	var bufSize int
+	var promptPattern string
 
 	cmd := &cobra.Command{
 		Use:    "_daemon",
@@ -33,6 +35,13 @@ func newDaemonCmd() *cobra.Command {
 				Echo:        echo,
 				BufSize:     bufSize,
 			}
+			if promptPattern != "" {
+				re, err := regexp.Compile(promptPattern)
+				if err != nil {
+					return fmt.Errorf("invalid --prompt regex: %w", err)
+				}
+				cfg.PromptRegex = re
+			}
 			return daemon.Run(cfg)
 		},
 	}
@@ -43,6 +52,8 @@ func newDaemonCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&echo, "echo", false, "enable pty echo")
 	cmd.Flags().IntVar(&bufSize, "buffer-size", 0,
 		"ring buffer size in bytes (0 means default)")
+	cmd.Flags().StringVar(&promptPattern, "prompt", "",
+		"regex pattern for prompt detection")
 
 	return cmd
 }

@@ -178,6 +178,19 @@ assert_contains "no-pty cat echoes" "$out" "hello pipes"
 run_ditty kill --name=nopty >/dev/null
 
 # ---------------------------------------------------------------------------
+echo "=== --suspend ==="
+
+run_ditty start --name=suspend --suspend python3 >/dev/null
+
+out=$(run_ditty continue --name=suspend 'print("resumed")')
+assert_contains "suspend resumes for continue" "$out" "resumed"
+
+out=$(run_ditty continue --name=suspend 'print("again")')
+assert_contains "suspend resumes again" "$out" "again"
+
+run_ditty kill --name=suspend >/dev/null
+
+# ---------------------------------------------------------------------------
 echo "=== --multi ==="
 
 run_ditty start --name=multi python3 >/dev/null

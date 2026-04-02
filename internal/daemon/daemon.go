@@ -44,6 +44,10 @@ type Config struct {
 	// NoPty disables pty allocation and uses pipes instead. Useful for
 	// programs that don't need a terminal.
 	NoPty bool
+	// Suspend sends SIGSTOP to the child when no client is connected
+	// and SIGCONT when a client connects. This prevents any background
+	// output but some programs handle suspend poorly.
+	Suspend bool
 }
 
 // Daemon manages a single REPL session.
@@ -376,6 +380,12 @@ func (d *Daemon) SetClient(c *clientConn) error {
 	dlog.Printf("daemon: client connected")
 	d.client = c
 
+	// Resume the child if it was suspended.
+	if d.cfg.Suspend {
+		dlog.Printf("daemon: resuming child (SIGCONT)")
+		d.cmd.Process.Signal(syscall.SIGCONT)
+	}
+
 	// Start a prompt detector so that initial output (or buffered output)
 	// can trigger prompt detection even before the client sends input.
 	if d.detector != nil {
@@ -411,6 +421,12 @@ func (d *Daemon) ClearClient(c *clientConn) {
 			d.detector = nil
 		}
 		d.client = nil
+
+		// Suspend the child if configured.
+		if d.cfg.Suspend {
+			dlog.Printf("daemon: suspending child (SIGSTOP)")
+			d.cmd.Process.Signal(syscall.SIGSTOP)
+		}
 	}
 }
 

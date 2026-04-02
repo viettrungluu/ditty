@@ -19,6 +19,7 @@ func newDaemonCmd() *cobra.Command {
 	var bufSize int
 	var promptPattern string
 	var noPty bool
+	var suspend bool
 
 	cmd := &cobra.Command{
 		Use:    "_daemon",
@@ -36,6 +37,7 @@ func newDaemonCmd() *cobra.Command {
 				Echo:        echo,
 				BufSize:     bufSize,
 				NoPty:       noPty,
+				Suspend:     suspend,
 			}
 			if promptPattern != "" {
 				re, err := regexp.Compile(promptPattern)
@@ -58,6 +60,8 @@ func newDaemonCmd() *cobra.Command {
 		"regex pattern for prompt detection")
 	cmd.Flags().BoolVar(&noPty, "no-pty", false,
 		"use pipes instead of a pty")
+	cmd.Flags().BoolVar(&suspend, "suspend", false,
+		"SIGSTOP the child between commands")
 
 	return cmd
 }

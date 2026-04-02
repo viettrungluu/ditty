@@ -18,6 +18,7 @@ import (
 func newContinueCmd() *cobra.Command {
 	var name string
 	var multi bool
+	var noShowPrompt bool
 
 	cmd := &cobra.Command{
 		Use:   "continue [flags] INPUT [INPUT...]",
@@ -31,9 +32,10 @@ joined with a space and sent as a single line.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if multi {
-				return runContinueMulti(name, args)
+				return runContinueMulti(name, noShowPrompt, args)
 			}
-			return runContinueSingle(name, strings.Join(args, " "))
+			return runContinueSingle(name, noShowPrompt,
+				strings.Join(args, " "))
 		},
 	}
 
@@ -41,12 +43,14 @@ joined with a space and sent as a single line.`,
 		"session name (defaults to last-used session)")
 	cmd.Flags().BoolVar(&multi, "multi", false,
 		"send each argument as a separate line, waiting for the prompt between each")
+	cmd.Flags().BoolVar(&noShowPrompt, "no-show-prompt", false,
+		"don't print the prompt after output")
 
 	return cmd
 }
 
 // runContinueSingle sends a single input and streams output.
-func runContinueSingle(name string, input string) error {
+func runContinueSingle(name string, noShowPrompt bool, input string) error {
 	conn, err := setupContinue(name)
 	if err != nil {
 		return err
@@ -54,12 +58,12 @@ func runContinueSingle(name string, input string) error {
 	defer conn.Close()
 	defer resetTerminal()
 
-	return sendAndWait(conn, input)
+	return sendAndWait(conn, !noShowPrompt, input)
 }
 
 // runContinueMulti sends each arg as a separate line, waiting for the
 // prompt between each.
-func runContinueMulti(name string, inputs []string) error {
+func runContinueMulti(name string, noShowPrompt bool, inputs []string) error {
 	conn, err := setupContinue(name)
 	if err != nil {
 		return err
@@ -67,8 +71,10 @@ func runContinueMulti(name string, inputs []string) error {
 	defer conn.Close()
 	defer resetTerminal()
 
-	for _, input := range inputs {
-		if err := sendAndWait(conn, input); err != nil {
+	for i, input := range inputs {
+		// Only show the prompt after the last input.
+		show := !noShowPrompt && i == len(inputs)-1
+		if err := sendAndWait(conn, show, input); err != nil {
 			return err
 		}
 	}
@@ -101,8 +107,9 @@ func setupContinue(name string) (net.Conn, error) {
 }
 
 // sendAndWait sends one line of input and streams output until the next
-// prompt or exit.
-func sendAndWait(conn net.Conn, input string) error {
+// prompt or exit. If showPrompt is true, a newline is printed after the
+// prompt is detected (so the prompt text is visible on its own line).
+func sendAndWait(conn net.Conn, showPrompt bool, input string) error {
 	if err := protocol.WriteMessage(conn, protocol.Message{
 		Type:    protocol.MsgInput,
 		Payload: []byte(input),
@@ -120,6 +127,9 @@ func sendAndWait(conn net.Conn, input string) error {
 		case protocol.MsgOutput, protocol.MsgBufferedOutput:
 			os.Stdout.Write(msg.Payload)
 		case protocol.MsgPromptDetected:
+			if showPrompt {
+				os.Stdout.WriteString("\n")
+			}
 			return nil
 		case protocol.MsgExited:
 			code := 0

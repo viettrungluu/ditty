@@ -82,6 +82,10 @@ assert_contains "start shows session name" "$out" "basic"
 
 out=$(run_ditty continue --name=basic 'print(40 + 2)')
 assert_contains "continue shows output" "$out" "42"
+assert_contains "continue shows prompt" "$out" ">>>"
+
+out=$(run_ditty continue --name=basic --no-show-prompt 'print(40 + 3)')
+assert_contains "no-show-prompt shows output" "$out" "43"
 
 out=$(run_ditty stop --name=basic)
 assert_contains "stop confirms" "$out" "stopped"

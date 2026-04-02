@@ -268,6 +268,7 @@ func streamUntilPrompt(conn net.Conn) error {
 		case protocol.MsgOutput, protocol.MsgBufferedOutput:
 			os.Stdout.Write(msg.Payload)
 		case protocol.MsgPromptDetected:
+			os.Stdout.WriteString("\n")
 			return nil
 		case protocol.MsgExited:
 			return nil

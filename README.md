@@ -78,6 +78,12 @@ ditty continue --name=py 'print(42)'
 ditty continue 'print(42)'                  # uses last-used session
 ```
 
+The prompt is printed after the output by default. Use `--no-show-prompt` to suppress it:
+
+```bash
+ditty continue --no-show-prompt --name=py 'print(42)'
+```
+
 With `--multi`, each argument is sent as a separate line, waiting for the prompt between each:
 
 ```bash

@@ -178,6 +178,20 @@ assert_contains "no-pty cat echoes" "$out" "hello pipes"
 run_ditty kill --name=nopty >/dev/null
 
 # ---------------------------------------------------------------------------
+echo "=== --multi ==="
+
+run_ditty start --name=multi python3 >/dev/null
+
+out=$(run_ditty continue --name=multi --multi 'x = 10' 'y = 20' 'print(x + y)')
+assert_contains "multi sends all lines" "$out" "30"
+
+# Verify state persisted across the multi lines.
+out=$(run_ditty continue --name=multi 'print(x * y)')
+assert_contains "multi state persists" "$out" "200"
+
+run_ditty kill --name=multi >/dev/null
+
+# ---------------------------------------------------------------------------
 echo "=== Missing session error ==="
 
 out=$(run_ditty continue --name=nonexistent 'hello')

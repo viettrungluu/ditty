@@ -17,37 +17,78 @@ import (
 // newContinueCmd creates the `ditty continue` subcommand.
 func newContinueCmd() *cobra.Command {
 	var name string
+	var multi bool
 
 	cmd := &cobra.Command{
-		Use:   "continue [flags] INPUT",
+		Use:   "continue [flags] INPUT [INPUT...]",
 		Short: "Send input to a running session",
 		Long: `Sends the given input string to the named session's REPL and
-streams output until the next prompt appears.`,
+streams output until the next prompt appears.
+
+With --multi, each argument is sent as a separate line, waiting for
+the prompt between each one. Without --multi, all arguments are
+joined with a space and sent as a single line.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runContinue(name, strings.Join(args, " "))
+			if multi {
+				return runContinueMulti(name, args)
+			}
+			return runContinueSingle(name, strings.Join(args, " "))
 		},
 	}
 
 	cmd.Flags().StringVar(&name, "name", "",
 		"session name (defaults to last-used session)")
+	cmd.Flags().BoolVar(&multi, "multi", false,
+		"send each argument as a separate line, waiting for the prompt between each")
 
 	return cmd
 }
 
-// runContinue sends input to a session and streams output.
-func runContinue(name string, input string) error {
-	var err error
-	name, err = resolveName(name)
-	if err != nil {
-		return err
-	}
-
-	conn, err := dialSession(name)
+// runContinueSingle sends a single input and streams output.
+func runContinueSingle(name string, input string) error {
+	conn, err := setupContinue(name)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+
+	if err := sendAndWait(conn, input); err != nil {
+		return err
+	}
+	return nil
+}
+
+// runContinueMulti sends each arg as a separate line, waiting for the
+// prompt between each.
+func runContinueMulti(name string, inputs []string) error {
+	conn, err := setupContinue(name)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	for _, input := range inputs {
+		if err := sendAndWait(conn, input); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// setupContinue resolves the session, connects, and sets up SIGINT
+// forwarding. The caller must close the returned connection.
+func setupContinue(name string) (net.Conn, error) {
+	var err error
+	name, err = resolveName(name)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := dialSession(name)
+	if err != nil {
+		return nil, err
+	}
 
 	// Record as last-used session.
 	session.SetLast(name)
@@ -55,10 +96,14 @@ func runContinue(name string, input string) error {
 	// Forward SIGINT to the REPL as an interrupt message.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT)
-	defer signal.Stop(sigCh)
 	go forwardInterrupts(conn, sigCh)
 
-	// Send the input.
+	return conn, nil
+}
+
+// sendAndWait sends one line of input and streams output until the next
+// prompt or exit.
+func sendAndWait(conn net.Conn, input string) error {
 	if err := protocol.WriteMessage(conn, protocol.Message{
 		Type:    protocol.MsgInput,
 		Payload: []byte(input),
@@ -66,7 +111,6 @@ func runContinue(name string, input string) error {
 		return fmt.Errorf("send input: %w", err)
 	}
 
-	// Stream output until prompt.
 	for {
 		msg, err := protocol.ReadMessage(conn)
 		if err != nil {

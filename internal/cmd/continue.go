@@ -52,11 +52,9 @@ func runContinueSingle(name string, input string) error {
 		return err
 	}
 	defer conn.Close()
+	defer resetTerminal()
 
-	if err := sendAndWait(conn, input); err != nil {
-		return err
-	}
-	return nil
+	return sendAndWait(conn, input)
 }
 
 // runContinueMulti sends each arg as a separate line, waiting for the
@@ -67,6 +65,7 @@ func runContinueMulti(name string, inputs []string) error {
 		return err
 	}
 	defer conn.Close()
+	defer resetTerminal()
 
 	for _, input := range inputs {
 		if err := sendAndWait(conn, input); err != nil {

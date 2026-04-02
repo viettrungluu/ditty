@@ -177,7 +177,15 @@ func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, pr
 	fmt.Fprintf(os.Stderr, "ditty: session %q started\n", name)
 
 	// Stream initial output until prompt is detected.
-	return streamUntilPrompt(conn)
+	err = streamUntilPrompt(conn)
+
+	// Reset terminal state that the REPL's startup may have changed.
+	// Many REPLs (irb, python with reline, etc.) enable bracketed paste
+	// mode, application cursor keys, and send cursor position queries
+	// during startup. These persist after ditty returns to the shell.
+	resetTerminal()
+
+	return err
 }
 
 // waitForSocket polls for the session's Unix socket to become available.

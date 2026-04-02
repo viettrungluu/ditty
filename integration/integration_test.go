@@ -76,8 +76,8 @@ func TestStartContinueStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start failed: %v\noutput: %s", err, out)
 	}
-	if !strings.Contains(out, ">>>") {
-		t.Errorf("start output should contain prompt, got: %s", out)
+	if !strings.Contains(out, "Python") {
+		t.Errorf("start output should contain Python banner, got: %s", out)
 	}
 
 	// Send a command.

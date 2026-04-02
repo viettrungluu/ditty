@@ -15,6 +15,7 @@
 //	# command_regex	flags
 //	^python\d*(\.\d+)*$	--prompt=(>>>|\.\.\.) $
 //	^irb\d*$	--env=TERM=dumb
+//	^rails$	--prompt=(irb.*|pry.*)> $ --env=TERM=dumb
 //	^gdb$	--prompt=\(gdb\) $
 package preset
 
@@ -42,6 +43,7 @@ var builtins = []Entry{
 	{regexp.MustCompile(`^gdb$`), `--prompt='\(gdb\) $'`},
 	{regexp.MustCompile(`^lldb$`), `--prompt='\(lldb\) $'`},
 	{regexp.MustCompile(`^irb\d*(\.\d+)*$`), `--prompt='irb.*> $' --env=TERM=dumb`},
+	{regexp.MustCompile(`^rails$`), `--prompt='(irb.*|pry.*)> $' --env=TERM=dumb`},
 	{regexp.MustCompile(`^sqlite3$`), `--prompt='sqlite> $'`},
 	{regexp.MustCompile(`^mysql$`), `--prompt='mysql> $'`},
 	{regexp.MustCompile(`^psql$`), `--prompt='[=#]> $'`},

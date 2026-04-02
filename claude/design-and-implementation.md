@@ -60,7 +60,7 @@ Presets are pairs of: a command regex (matched against the program basename) and
 Presets are loaded from two sources, checked in order:
 
 1. **User presets file** (`~/.ditty/presets` by default, overridable with `--presets-file`). Tab-separated pairs: command regex and flags string.
-2. **Built-in presets** compiled into the binary: python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R.
+2. **Built-in presets** compiled into the binary: python, node, gdb, lldb, irb, rails, sqlite3, mysql, psql, lua, R.
 
 First match on the command regex wins. User presets are checked before built-ins, allowing overrides. `--no-builtin-presets` disables built-ins (user file still applies). Explicit CLI flags always take precedence over preset flags (checked via cobra's `Flags().Changed()`).
 

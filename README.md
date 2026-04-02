@@ -117,7 +117,7 @@ This is the most precise — ditty returns as soon as the regex matches, with no
 
 ### 2. Presets (automatic + custom)
 
-ditty ships with built-in presets for common programs: python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R. These are applied automatically based on the command name (version suffixes like `python3.12` are handled).
+ditty ships with built-in presets for common programs: python, node, gdb, lldb, irb, rails, sqlite3, mysql, psql, lua, R. These are applied automatically based on the command name (version suffixes like `python3.12` are handled).
 
 Presets can set any `ditty start` flag as a default — not just `--prompt`, but also `--env`, `--idle-timeout`, `--echo`, etc. Explicit CLI flags always take precedence over preset values.
 

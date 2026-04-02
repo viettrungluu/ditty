@@ -27,6 +27,7 @@ func TestLookupBuiltins(t *testing.T) {
 		{"psql", true},
 		{"lua", true},
 		{"R", true},
+		{"rails", true},
 		{"someunknown", false},
 		{"cat", false},
 		{"bash", false},
@@ -223,6 +224,8 @@ func TestBuiltinPromptRegexes(t *testing.T) {
 		{"lldb", "(lldb) "},
 		{"sqlite3", "sqlite> "},
 		{"mysql", "mysql> "},
+		{"rails", "irb(main):001:0> "},
+		{"rails", "[1] pry(main)> "},
 	}
 
 	for _, tt := range tests {

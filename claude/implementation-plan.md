@@ -81,7 +81,7 @@ All items below are implemented, tested, committed, and pushed.
 - [x] `--suspend` flag (SIGSTOP/SIGCONT between commands)
 - [x] `--multi` flag on continue (each arg as a separate line)
 - [x] `ditty attach` (interactive line-by-line session)
-- [x] Built-in presets (python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R)
+- [x] Built-in presets (python, node, gdb, lldb, irb, rails, sqlite3, mysql, psql, lua, R)
 - [x] Presets redesigned: flag-based format (presets can set any start flag, not just prompt)
 - [x] `--no-builtin-presets` flag to disable built-in presets
 - [x] `--env` flag (repeatable) to set environment variables for the child

@@ -209,8 +209,8 @@ func TestAutoGenerateName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start failed: %v\noutput: %s", err, out)
 	}
-	if !strings.Contains(out, "session") {
-		t.Errorf("start output should mention session name, got: %s", out)
+	if !strings.Contains(out, "python3-") {
+		t.Errorf("start output should contain command-based name, got: %s", out)
 	}
 
 	// List should show the auto-generated session.

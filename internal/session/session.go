@@ -125,14 +125,53 @@ func DialSocket(name string) (net.Conn, error) {
 	return conn, dialErr
 }
 
-// GenerateName produces a short random session name.
-// The name is 8 hex characters (4 random bytes).
-func GenerateName() (string, error) {
+// maxPrefixLen is the maximum length of the command prefix in generated names.
+const maxPrefixLen = 10
+
+// GenerateName produces a session name from the command basename and a short
+// random suffix. The command basename is lowercased, truncated to maxPrefixLen
+// characters, and non-alphanumeric characters are replaced with hyphens. If
+// command is empty, only the random suffix is used.
+func GenerateName(command string) (string, error) {
 	b := make([]byte, 4)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("generate random name: %w", err)
 	}
-	return fmt.Sprintf("%x", b), nil
+	suffix := fmt.Sprintf("%x", b)
+
+	prefix := sanitizePrefix(filepath.Base(command))
+	if prefix == "" {
+		return suffix, nil
+	}
+	return prefix + "-" + suffix, nil
+}
+
+// sanitizePrefix extracts a clean prefix from a command basename. It
+// lowercases, replaces non-alphanumeric characters with hyphens, collapses
+// runs of hyphens, trims leading/trailing hyphens, and truncates to
+// maxPrefixLen.
+func sanitizePrefix(base string) string {
+	var buf strings.Builder
+	for _, c := range strings.ToLower(base) {
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+			buf.WriteRune(c)
+		} else {
+			buf.WriteByte('-')
+		}
+	}
+
+	// Collapse runs of hyphens and trim.
+	s := buf.String()
+	for strings.Contains(s, "--") {
+		s = strings.ReplaceAll(s, "--", "-")
+	}
+	s = strings.Trim(s, "-")
+
+	if len(s) > maxPrefixLen {
+		s = s[:maxPrefixLen]
+		s = strings.TrimRight(s, "-")
+	}
+	return s
 }
 
 // IsAlive checks whether a session is alive by attempting to connect to its

@@ -3,25 +3,83 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 func TestGenerateName(t *testing.T) {
-	name, err := GenerateName()
+	// Empty command: just random suffix.
+	name, err := GenerateName("")
 	if err != nil {
-		t.Fatalf("GenerateName() error: %v", err)
+		t.Fatalf("GenerateName('') error: %v", err)
 	}
 	if len(name) != 8 {
 		t.Errorf("expected 8-char name, got %q (len %d)", name, len(name))
 	}
 
+	// With command: prefix-suffix.
+	name, err = GenerateName("python3")
+	if err != nil {
+		t.Fatalf("GenerateName('python3') error: %v", err)
+	}
+	if !strings.HasPrefix(name, "python3-") {
+		t.Errorf("expected python3- prefix, got %q", name)
+	}
+	// 7 (python3) + 1 (-) + 8 (hex) = 16
+	if len(name) != 16 {
+		t.Errorf("expected 16-char name, got %q (len %d)", name, len(name))
+	}
+
+	// Full path: uses basename.
+	name, err = GenerateName("/usr/bin/python3")
+	if err != nil {
+		t.Fatalf("GenerateName('/usr/bin/python3') error: %v", err)
+	}
+	if !strings.HasPrefix(name, "python3-") {
+		t.Errorf("expected python3- prefix, got %q", name)
+	}
+
 	// Names should be unique.
-	name2, err := GenerateName()
+	name2, err := GenerateName("python3")
 	if err != nil {
 		t.Fatalf("GenerateName() error: %v", err)
 	}
 	if name == name2 {
 		t.Errorf("expected unique names, got %q twice", name)
+	}
+}
+
+func TestSanitizePrefix(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"python3", "python3"},
+		{"Python3", "python3"},
+		{"my_repl", "my-repl"},
+		{"my--repl", "my-repl"},
+		{"./my-repl", "my-repl"},
+		{"a-very-long-command-name", "a-very-lon"},
+		{"", "."},   // filepath.Base("") returns "."
+		{"gdb", "gdb"},
+		{"sqlite3", "sqlite3"},
+		{"rails", "rails"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := sanitizePrefix(tt.input)
+			// For empty input, filepath.Base returns ".", which sanitizes to "".
+			if tt.input == "" {
+				if got != "" {
+					t.Errorf("sanitizePrefix(%q) = %q, want empty", tt.input, got)
+				}
+				return
+			}
+			if got != tt.want {
+				t.Errorf("sanitizePrefix(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }
 

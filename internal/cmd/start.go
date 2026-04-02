@@ -130,8 +130,12 @@ func applyPresetDefaults(cmd *cobra.Command, parsed map[string]string,
 func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, promptPattern string, noPty bool, suspend bool, envVars []string, args []string) error {
 	// Generate a name if not provided.
 	if name == "" {
+		command := ""
+		if len(args) > 0 {
+			command = args[0]
+		}
 		var err error
-		name, err = session.GenerateName()
+		name, err = session.GenerateName(command)
 		if err != nil {
 			return err
 		}

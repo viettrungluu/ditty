@@ -130,7 +130,7 @@ run_ditty kill --name=last >/dev/null
 echo "=== Auto-generated name ==="
 
 out=$(run_ditty start python3)
-assert_contains "auto name shows session" "$out" "session"
+assert_contains "auto name shows command prefix" "$out" "python3-"
 assert_contains "auto name shows prompt" "$out" ">>>"
 
 # Kill via last-used.

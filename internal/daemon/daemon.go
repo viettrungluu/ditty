@@ -127,7 +127,12 @@ func Run(cfg Config) error {
 // startREPL launches the child process on a pty.
 func (d *Daemon) startREPL() error {
 	cmd := exec.Command(d.cfg.Command, d.cfg.Args...)
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	// Inherit the user's environment, including TERM. Only set TERM if
+	// it's not already present (e.g., when running detached).
+	cmd.Env = os.Environ()
+	if os.Getenv("TERM") == "" {
+		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
+	}
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {

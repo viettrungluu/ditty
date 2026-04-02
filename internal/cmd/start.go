@@ -24,6 +24,7 @@ func newStartCmd() *cobra.Command {
 	var promptPattern string
 	var noPty bool
 	var suspend bool
+	var noPresets bool
 	var noBuiltinPresets bool
 	var presetsFile string
 	var presetName string
@@ -36,28 +37,29 @@ func newStartCmd() *cobra.Command {
 its initial output until the first prompt appears.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Resolve default presets file if not specified.
-			if presetsFile == "" {
-				if p, err := preset.DefaultPresetsFile(); err == nil {
-					presetsFile = p
-				}
-			}
-
 			// Look up preset and apply defaults for unset flags.
-			commandLine := preset.BuildCommandLine(args)
-			flags, matched, err := preset.Lookup(
-				commandLine, presetName, presetsFile,
-				!noBuiltinPresets)
-			if err != nil {
-				return fmt.Errorf("preset lookup: %w", err)
-			}
-			if flags != "" {
-				dlog.Printf("start: preset %q matched, flags: %s",
-					matched, flags)
-				parsed := preset.ParseFlags(flags)
-				applyPresetDefaults(cmd, parsed,
-					&promptPattern, &idleTimeout, &noEcho,
-					&noPty, &suspend, &bufSize, &envVars)
+			if !noPresets {
+				if presetsFile == "" {
+					if p, err := preset.DefaultPresetsFile(); err == nil {
+						presetsFile = p
+					}
+				}
+
+				commandLine := preset.BuildCommandLine(args)
+				flags, matched, err := preset.Lookup(
+					commandLine, presetName, presetsFile,
+					!noBuiltinPresets)
+				if err != nil {
+					return fmt.Errorf("preset lookup: %w", err)
+				}
+				if flags != "" {
+					dlog.Printf("start: preset %q matched, flags: %s",
+						matched, flags)
+					parsed := preset.ParseFlags(flags)
+					applyPresetDefaults(cmd, parsed,
+						&promptPattern, &idleTimeout, &noEcho,
+						&noPty, &suspend, &bufSize, &envVars)
+				}
 			}
 
 			return runStart(name, idleTimeout, noEcho, bufSize,
@@ -79,6 +81,8 @@ its initial output until the first prompt appears.`,
 		"use pipes instead of a pty (for programs that don't need a terminal)")
 	cmd.Flags().BoolVar(&suspend, "suspend", false,
 		"SIGSTOP the child between commands (some programs handle this poorly)")
+	cmd.Flags().BoolVar(&noPresets, "no-presets", false,
+		"disable all presets (built-in and user)")
 	cmd.Flags().BoolVar(&noBuiltinPresets, "no-builtin-presets", false,
 		"disable built-in presets (user presets file still applies)")
 	cmd.Flags().StringVar(&presetsFile, "presets-file", "",

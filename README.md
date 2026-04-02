@@ -147,7 +147,8 @@ Values with spaces must be quoted (single or double quotes). User presets are ch
 ```bash
 ditty start python3                              # auto-detects ">>> "
 ditty start rails console                        # auto-detects rails console
-ditty start --no-builtin-presets python3          # skip builtins, use idle timeout
+ditty start --no-presets python3                  # skip all presets, use idle timeout
+ditty start --no-builtin-presets python3          # skip builtins only, user presets still apply
 ditty start --presets-file=./my-presets python3   # use custom presets file
 ditty start --preset=headless myprogram           # use a named preset
 ```

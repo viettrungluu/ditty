@@ -196,6 +196,14 @@ assert_contains "no-builtin-presets falls back" "$out" "fallback"
 
 run_ditty kill --name=nopreset >/dev/null
 
+# --no-presets should disable all presets (still works via idle timeout).
+run_ditty start --name=nopresetsall --no-presets python3 >/dev/null
+
+out=$(run_ditty continue --name=nopresetsall 'print("nopresets")')
+assert_contains "no-presets falls back" "$out" "nopresets"
+
+run_ditty kill --name=nopresetsall >/dev/null
+
 # User presets file with new 3-field format: name<TAB>regex<TAB>flags.
 PRESETS_FILE="$HOME/.ditty/user-presets"
 mkdir -p "$(dirname "$PRESETS_FILE")"

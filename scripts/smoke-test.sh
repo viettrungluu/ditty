@@ -205,6 +205,20 @@ assert_contains "multi state persists" "$out" "200"
 run_ditty kill --name=multi >/dev/null
 
 # ---------------------------------------------------------------------------
+echo "=== attach ==="
+
+run_ditty start --name=attach python3 >/dev/null
+
+out=$(printf 'x = 77\nprint(x)\n' | run_ditty attach --name=attach)
+assert_contains "attach shows output" "$out" "77"
+
+# State should persist after detach.
+out=$(run_ditty continue --name=attach 'print(x + 3)')
+assert_contains "state persists after attach" "$out" "80"
+
+run_ditty kill --name=attach >/dev/null
+
+# ---------------------------------------------------------------------------
 echo "=== Missing session error ==="
 
 out=$(run_ditty continue --name=nonexistent 'hello')

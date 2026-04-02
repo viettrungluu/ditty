@@ -31,6 +31,7 @@ and lets you send input and receive output through simple CLI commands.`,
 	cmd.AddCommand(newStopCmd())
 	cmd.AddCommand(newKillCmd())
 	cmd.AddCommand(newListCmd())
+	cmd.AddCommand(newAttachCmd())
 
 	return cmd
 }

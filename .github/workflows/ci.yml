@@ -36,8 +36,4 @@ jobs:
       - name: Smoke tests
         run: |
           go build -o ./ditty .
-          # gtimeout is coreutils timeout; on Linux it's just "timeout"
-          if ! command -v gtimeout &>/dev/null; then
-            sudo ln -sf "$(command -v timeout)" /usr/local/bin/gtimeout
-          fi
           scripts/smoke-test.sh ./ditty

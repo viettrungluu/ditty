@@ -57,9 +57,20 @@ assert_not_contains() {
 	fi
 }
 
+# Find a working timeout command (gtimeout on macOS with coreutils,
+# timeout on Linux).
+if command -v gtimeout &>/dev/null; then
+	TIMEOUT_CMD=gtimeout
+elif command -v timeout &>/dev/null; then
+	TIMEOUT_CMD=timeout
+else
+	echo "ERROR: neither gtimeout nor timeout found" >&2
+	exit 1
+fi
+
 run_ditty() {
 	# shellcheck disable=SC2086
-	gtimeout 10 $DITTY "$@" 2>&1 || true
+	$TIMEOUT_CMD 10 $DITTY "$@" 2>&1 || true
 }
 
 # ---------------------------------------------------------------------------

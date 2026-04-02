@@ -70,7 +70,7 @@ its initial output until the first prompt appears.`,
 	cmd.Flags().DurationVar(&idleTimeout, "idle-timeout", 0,
 		"prompt detection idle timeout (e.g., 200ms, 1s); 0 means default")
 	cmd.Flags().BoolVar(&echo, "echo", true,
-		"echo input back in output")
+		"echo input back in output (use --echo=false to disable)")
 	cmd.Flags().IntVar(&bufSize, "buffer-size", 0,
 		"background output ring buffer size in bytes (default: 1MB)")
 	cmd.Flags().StringVar(&promptPattern, "prompt", "",

@@ -88,6 +88,16 @@ func Run(cfg Config) error {
 		return fmt.Errorf("start server: %w", err)
 	}
 
+	// Write session metadata to disk.
+	if err := session.WriteMetadata(cfg.Name, session.Metadata{
+		PID:       os.Getpid(),
+		Command:   cfg.Command,
+		Args:      cfg.Args,
+		StartedAt: time.Now(),
+	}); err != nil {
+		dlog.Printf("daemon: failed to write metadata: %v", err)
+	}
+
 	// Read pty output in the background.
 	go d.readLoop()
 

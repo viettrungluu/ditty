@@ -11,6 +11,7 @@ package session
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -145,6 +146,52 @@ func IsAlive(name string) bool {
 	return true
 }
 
+// Metadata holds persistent information about a session, written to disk
+// by the daemon at startup.
+type Metadata struct {
+	// PID is the daemon process ID.
+	PID int `json:"pid"`
+	// Command is the REPL program name.
+	Command string `json:"command"`
+	// Args are the REPL program arguments.
+	Args []string `json:"args,omitempty"`
+	// StartedAt is when the session was started.
+	StartedAt time.Time `json:"started_at"`
+}
+
+// WriteMetadata writes session metadata to disk as NAME.json.
+func WriteMetadata(name string, meta Metadata) error {
+	dir, err := EnsureBaseDir()
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(meta)
+	if err != nil {
+		return fmt.Errorf("marshal metadata: %w", err)
+	}
+	return os.WriteFile(filepath.Join(dir, name+".json"), data, 0o600)
+}
+
+// ReadMetadata reads session metadata from disk. Returns nil if not found.
+func ReadMetadata(name string) (*Metadata, error) {
+	dir, err := BaseDir()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(filepath.Join(dir, name+".json"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read metadata: %w", err)
+	}
+	var meta Metadata
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, fmt.Errorf("unmarshal metadata: %w", err)
+	}
+	return &meta, nil
+}
+
 // Info holds metadata about a discovered session.
 type Info struct {
 	// Name is the session name.
@@ -153,6 +200,8 @@ type Info struct {
 	SocketPath string
 	// Alive indicates whether the session's daemon is reachable.
 	Alive bool
+	// Meta is the session metadata, if available.
+	Meta *Metadata
 }
 
 // List discovers all sessions by scanning the sessions directory for socket
@@ -181,10 +230,12 @@ func List() ([]Info, error) {
 			continue
 		}
 		sessName := strings.TrimSuffix(name, ".sock")
+		meta, _ := ReadMetadata(sessName)
 		sessions = append(sessions, Info{
 			Name:       sessName,
 			SocketPath: filepath.Join(dir, name),
 			Alive:      IsAlive(sessName),
+			Meta:       meta,
 		})
 	}
 	return sessions, nil
@@ -215,12 +266,13 @@ func GetLast() (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-// Cleanup removes a session's socket file.
+// Cleanup removes a session's socket file and metadata file.
 func Cleanup(name string) error {
-	sockPath, err := SocketPath(name)
+	dir, err := BaseDir()
 	if err != nil {
 		return err
 	}
-	os.Remove(sockPath)
+	os.Remove(filepath.Join(dir, name+".sock"))
+	os.Remove(filepath.Join(dir, name+".json"))
 	return nil
 }

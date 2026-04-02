@@ -21,6 +21,7 @@ func newStartCmd() *cobra.Command {
 	var echo bool
 	var bufSize int
 	var promptPattern string
+	var noPty bool
 
 	cmd := &cobra.Command{
 		Use:   "start [flags] PROGRAM [ARGS...]",
@@ -29,7 +30,7 @@ func newStartCmd() *cobra.Command {
 its initial output until the first prompt appears.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStart(name, idleTimeout, echo, bufSize, promptPattern, args)
+			return runStart(name, idleTimeout, echo, bufSize, promptPattern, noPty, args)
 		},
 	}
 
@@ -43,12 +44,14 @@ its initial output until the first prompt appears.`,
 		"background output ring buffer size in bytes (default: 1MB)")
 	cmd.Flags().StringVar(&promptPattern, "prompt", "",
 		"regex pattern for prompt detection (overrides idle timeout)")
+	cmd.Flags().BoolVar(&noPty, "no-pty", false,
+		"use pipes instead of a pty (for programs that don't need a terminal)")
 
 	return cmd
 }
 
 // runStart launches the daemon and streams initial output.
-func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, promptPattern string, args []string) error {
+func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, promptPattern string, noPty bool, args []string) error {
 	// Generate a name if not provided.
 	if name == "" {
 		var err error
@@ -93,6 +96,9 @@ func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, pr
 	}
 	if promptPattern != "" {
 		daemonArgs = append(daemonArgs, "--prompt", promptPattern)
+	}
+	if noPty {
+		daemonArgs = append(daemonArgs, "--no-pty")
 	}
 	daemonArgs = append(daemonArgs, "--")
 	daemonArgs = append(daemonArgs, args...)

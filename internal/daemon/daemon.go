@@ -41,12 +41,16 @@ type Config struct {
 	Echo bool
 	// PromptRegex, if set, is a compiled regex for prompt detection.
 	PromptRegex *regexp.Regexp
+	// NoPty disables pty allocation and uses pipes instead. Useful for
+	// programs that don't need a terminal.
+	NoPty bool
 }
 
 // Daemon manages a single REPL session.
 type Daemon struct {
 	cfg    Config
-	ptmx   *os.File // pty master
+	ptmx   *os.File   // pty master (nil in no-pty mode)
+	stdin  io.WriteCloser // child stdin pipe (nil in pty mode)
 	cmd    *exec.Cmd
 	buf    *ringbuf.RingBuf
 	server *Server
@@ -86,7 +90,7 @@ func Run(cfg Config) error {
 	var err error
 	d.server, err = NewServer(cfg.Name, d)
 	if err != nil {
-		d.ptmx.Close()
+		d.closeChildInput()
 		d.cmd.Process.Kill()
 		return fmt.Errorf("start server: %w", err)
 	}
@@ -101,8 +105,11 @@ func Run(cfg Config) error {
 		dlog.Printf("daemon: failed to write metadata: %v", err)
 	}
 
-	// Read pty output in the background.
-	go d.readLoop()
+	// Read output in the background. In pipe mode, the reader was already
+	// started by startREPLPipes.
+	if !cfg.NoPty {
+		go d.readLoop()
+	}
 
 	// Wait for child to exit.
 	go d.waitChild()
@@ -124,12 +131,16 @@ func Run(cfg Config) error {
 	return nil
 }
 
-// startREPL launches the child process on a pty.
+// startREPL launches the child process, using a pty or pipes.
 func (d *Daemon) startREPL() error {
 	cmd := exec.Command(d.cfg.Command, d.cfg.Args...)
-	// Inherit the user's environment, including TERM. Only set TERM if
-	// it's not already present (e.g., when running detached).
 	cmd.Env = os.Environ()
+
+	if d.cfg.NoPty {
+		return d.startREPLPipes(cmd)
+	}
+
+	// Pty mode: set TERM if not already present.
 	if os.Getenv("TERM") == "" {
 		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 	}
@@ -144,11 +155,43 @@ func (d *Daemon) startREPL() error {
 	return nil
 }
 
+// startREPLPipes launches the child using pipes instead of a pty.
+func (d *Daemon) startREPLPipes(cmd *exec.Cmd) error {
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("stdin pipe: %w", err)
+	}
+
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("stdout pipe: %w", err)
+	}
+
+	// Merge stderr into stdout so all output goes through one reader.
+	cmd.Stderr = cmd.Stdout
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start: %w", err)
+	}
+
+	d.cmd = cmd
+	d.stdin = stdinPipe
+
+	// Start reading from stdout (which includes stderr).
+	go d.readFromReader(stdoutPipe, "pipe")
+	return nil
+}
+
 // readLoop continuously reads from the pty master and dispatches output.
 func (d *Daemon) readLoop() {
+	d.readFromReader(d.ptmx, "pty")
+}
+
+// readFromReader reads from r and dispatches output until EOF or error.
+func (d *Daemon) readFromReader(r io.Reader, label string) {
 	buf := make([]byte, 4096)
 	for {
-		n, err := d.ptmx.Read(buf)
+		n, err := r.Read(buf)
 		if n > 0 {
 			data := make([]byte, n)
 			copy(data, buf[:n])
@@ -156,7 +199,7 @@ func (d *Daemon) readLoop() {
 		}
 		if err != nil {
 			if err != io.EOF {
-				dlog.Printf("pty read error: %v", err)
+				dlog.Printf("%s read error: %v", label, err)
 			}
 			return
 		}
@@ -203,7 +246,9 @@ func (d *Daemon) waitChild() {
 	}
 	d.mu.Unlock()
 
-	d.ptmx.Close()
+	if d.ptmx != nil {
+		d.ptmx.Close()
+	}
 	close(d.done)
 }
 
@@ -236,23 +281,48 @@ func (d *Daemon) HandleInput(c *clientConn, data []byte) {
 		d.echoStrip = plainInput
 	}
 
-	// Write the input to the pty (with a trailing newline if not present).
+	// Write the input (with a trailing newline if not present).
 	input := data
 	if len(input) == 0 || input[len(input)-1] != '\n' {
 		input = append(input, '\n')
 	}
-	if _, err := d.ptmx.Write(input); err != nil {
-		dlog.Printf("pty write error: %v", err)
+	if _, err := d.writeToChild(input); err != nil {
+		dlog.Printf("write error: %v", err)
 		d.mu.Lock()
-		c.sendError(fmt.Sprintf("pty write: %v", err))
+		c.sendError(fmt.Sprintf("write to child: %v", err))
 		d.mu.Unlock()
 	}
 }
 
-// HandleInterrupt writes Ctrl-C (\x03) to the pty.
+// HandleInterrupt sends an interrupt to the child. In pty mode this
+// writes \x03; in pipe mode it sends SIGINT directly.
 func (d *Daemon) HandleInterrupt() {
-	if _, err := d.ptmx.Write([]byte{0x03}); err != nil {
-		dlog.Printf("pty write interrupt error: %v", err)
+	if d.ptmx != nil {
+		if _, err := d.ptmx.Write([]byte{0x03}); err != nil {
+			dlog.Printf("pty write interrupt error: %v", err)
+		}
+	} else {
+		if err := d.cmd.Process.Signal(syscall.SIGINT); err != nil {
+			dlog.Printf("send SIGINT error: %v", err)
+		}
+	}
+}
+
+// writeToChild writes data to the child's input (pty master or stdin pipe).
+func (d *Daemon) writeToChild(data []byte) (int, error) {
+	if d.ptmx != nil {
+		return d.ptmx.Write(data)
+	}
+	return d.stdin.Write(data)
+}
+
+// closeChildInput closes the child's input (pty master or stdin pipe).
+func (d *Daemon) closeChildInput() {
+	if d.ptmx != nil {
+		d.ptmx.Close()
+	}
+	if d.stdin != nil {
+		d.stdin.Close()
 	}
 }
 

@@ -18,6 +18,7 @@ func newDaemonCmd() *cobra.Command {
 	var echo bool
 	var bufSize int
 	var promptPattern string
+	var noPty bool
 
 	cmd := &cobra.Command{
 		Use:    "_daemon",
@@ -34,6 +35,7 @@ func newDaemonCmd() *cobra.Command {
 				IdleTimeout: idleTimeout,
 				Echo:        echo,
 				BufSize:     bufSize,
+				NoPty:       noPty,
 			}
 			if promptPattern != "" {
 				re, err := regexp.Compile(promptPattern)
@@ -54,6 +56,8 @@ func newDaemonCmd() *cobra.Command {
 		"ring buffer size in bytes (0 means default)")
 	cmd.Flags().StringVar(&promptPattern, "prompt", "",
 		"regex pattern for prompt detection")
+	cmd.Flags().BoolVar(&noPty, "no-pty", false,
+		"use pipes instead of a pty")
 
 	return cmd
 }

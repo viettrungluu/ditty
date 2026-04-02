@@ -157,6 +157,16 @@ assert_contains "custom timeout works" "$out" "quick"
 run_ditty kill --name=timeout >/dev/null
 
 # ---------------------------------------------------------------------------
+echo "=== --no-pty (cat) ==="
+
+run_ditty start --name=nopty --no-pty cat >/dev/null
+
+out=$(run_ditty continue --name=nopty 'hello pipes')
+assert_contains "no-pty cat echoes" "$out" "hello pipes"
+
+run_ditty kill --name=nopty >/dev/null
+
+# ---------------------------------------------------------------------------
 echo "=== Missing session error ==="
 
 out=$(run_ditty continue --name=nonexistent 'hello')

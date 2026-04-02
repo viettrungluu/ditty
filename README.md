@@ -34,6 +34,26 @@ ditty list
 ditty stop --name=py
 ```
 
+## Testing
+
+Run the smoke tests (requires `python3` and `gtimeout`):
+
+```
+scripts/smoke-test.sh ./ditty
+```
+
+Or without a pre-built binary (uses `go run .`):
+
+```
+scripts/smoke-test.sh
+```
+
+Unit and integration tests:
+
+```
+go test ./...
+```
+
 ## How it works
 
 Each `ditty start` spawns a per-session daemon that allocates a pseudoterminal (so the REPL behaves as if attached to a real terminal), holds the REPL process, and listens on a Unix domain socket. `ditty continue` is a thin client that connects to the socket, sends input, streams output until the next prompt, and disconnects.

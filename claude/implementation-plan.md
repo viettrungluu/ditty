@@ -20,6 +20,7 @@ ditty/
       list.go                     # ditty list / ditty ls
       attach.go                   # ditty attach
       listpresets.go              # ditty list-presets
+      outputbuf.go                # output buffering for prompt display
       daemon.go                   # hidden _daemon subcommand
     daemon/                       # daemon process logic
       daemon.go                   # main loop: pty, REPL lifecycle, echo stripping
@@ -95,6 +96,11 @@ All items below are implemented, tested, committed, and pushed.
 - [x] GitHub Actions CI (Ubuntu + macOS)
 - [x] Release workflow (cross-compile, .tar.gz, checksums)
 - [x] Homebrew tap (viettrungluu/tap/ditty)
+- [x] Automated Homebrew tap update in release workflow
+- [x] Command-based auto-generated session names (e.g., python3-a1b2c3d4)
+- [x] `--no-presets` flag to disable all presets
+- [x] `--preset=NAME` flag and `ditty list-presets` command
+- [x] Prompt display: saved prompt shown at start of continue output (`--no-show-prompt` to suppress)
 
 ## What's Left (future work)
 

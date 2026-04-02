@@ -92,10 +92,23 @@ When a pty is in use, the terminal line discipline echoes input. This means `dit
 - **`ditty continue`**: catches SIGINT and forwards it to the child by writing `\x03` to the pty (or sending SIGINT in pipe mode).
 - **`ditty stop`**: sends SIGTERM to the child, with SIGKILL escalation after 5 seconds.
 
+## Prompt Display
+
+When `ditty start` or `ditty continue` streams output, the trailing partial line (the prompt) is held back by an output buffer that only flushes complete lines. The detected prompt text is saved to `NAME.prompt` on disk. The next `ditty continue` reads the saved prompt and prints it before the output, so the display looks like a normal terminal session:
+
+```
+$ ditty continue 'print(42)'
+>>> print(42)
+42
+```
+
+The `--no-show-prompt` flag on `continue` suppresses the leading prompt.
+
 ## Session State on Disk
 
 - `~/.ditty/sessions/NAME.sock` — Unix domain socket for the daemon.
 - `~/.ditty/sessions/NAME.json` — metadata (PID, command, args, start time).
+- `~/.ditty/sessions/NAME.prompt` — last detected prompt text (for display on next continue).
 - `~/.ditty/sessions/.last` — name of the last-used session.
 
 All files are cleaned up when the daemon exits.

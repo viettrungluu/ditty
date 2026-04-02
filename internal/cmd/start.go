@@ -19,7 +19,7 @@ import (
 func newStartCmd() *cobra.Command {
 	var name string
 	var idleTimeout time.Duration
-	var echo bool
+	var noEcho bool
 	var bufSize int
 	var promptPattern string
 	var noPty bool
@@ -56,11 +56,11 @@ its initial output until the first prompt appears.`,
 					matched, flags)
 				parsed := preset.ParseFlags(flags)
 				applyPresetDefaults(cmd, parsed,
-					&promptPattern, &idleTimeout, &echo,
+					&promptPattern, &idleTimeout, &noEcho,
 					&noPty, &suspend, &bufSize, &envVars)
 			}
 
-			return runStart(name, idleTimeout, echo, bufSize,
+			return runStart(name, idleTimeout, noEcho, bufSize,
 				promptPattern, noPty, suspend, envVars, args)
 		},
 	}
@@ -69,8 +69,8 @@ its initial output until the first prompt appears.`,
 		"session name (generated if omitted)")
 	cmd.Flags().DurationVar(&idleTimeout, "idle-timeout", 0,
 		"prompt detection idle timeout (e.g., 200ms, 1s); 0 means default")
-	cmd.Flags().BoolVar(&echo, "echo", true,
-		"echo input back in output (use --echo=false to disable)")
+	cmd.Flags().BoolVar(&noEcho, "no-echo", false,
+		"suppress input echo in output (cleaner for scripting)")
 	cmd.Flags().IntVar(&bufSize, "buffer-size", 0,
 		"background output ring buffer size in bytes (default: 1MB)")
 	cmd.Flags().StringVar(&promptPattern, "prompt", "",
@@ -99,7 +99,7 @@ its initial output until the first prompt appears.`,
 // applyPresetDefaults applies preset flags as defaults for any CLI flags
 // that the user did not explicitly set.
 func applyPresetDefaults(cmd *cobra.Command, parsed map[string]string,
-	promptPattern *string, idleTimeout *time.Duration, echo *bool,
+	promptPattern *string, idleTimeout *time.Duration, noEcho *bool,
 	noPty *bool, suspend *bool, bufSize *int, envVars *[]string) {
 
 	if v, ok := parsed["prompt"]; ok && !cmd.Flags().Changed("prompt") {
@@ -110,8 +110,8 @@ func applyPresetDefaults(cmd *cobra.Command, parsed map[string]string,
 			*idleTimeout = d
 		}
 	}
-	if v, ok := parsed["echo"]; ok && !cmd.Flags().Changed("echo") {
-		*echo = (v != "false")
+	if _, ok := parsed["no-echo"]; ok && !cmd.Flags().Changed("no-echo") {
+		*noEcho = true
 	}
 	if _, ok := parsed["no-pty"]; ok && !cmd.Flags().Changed("no-pty") {
 		*noPty = true
@@ -132,7 +132,7 @@ func applyPresetDefaults(cmd *cobra.Command, parsed map[string]string,
 }
 
 // runStart launches the daemon and streams initial output.
-func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, promptPattern string, noPty bool, suspend bool, envVars []string, args []string) error {
+func runStart(name string, idleTimeout time.Duration, noEcho bool, bufSize int, promptPattern string, noPty bool, suspend bool, envVars []string, args []string) error {
 	// Generate a name if not provided.
 	if name == "" {
 		command := ""
@@ -172,8 +172,8 @@ func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, pr
 		daemonArgs = append(daemonArgs, "--idle-timeout",
 			idleTimeout.String())
 	}
-	if !echo {
-		daemonArgs = append(daemonArgs, "--echo=false")
+	if noEcho {
+		daemonArgs = append(daemonArgs, "--no-echo")
 	}
 	if bufSize > 0 {
 		daemonArgs = append(daemonArgs, "--buffer-size",

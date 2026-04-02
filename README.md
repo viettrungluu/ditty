@@ -123,7 +123,7 @@ This is the most precise — ditty returns as soon as the regex matches, with no
 
 Each preset has a **name**, one or more **command regexes**, and a set of **flags** to apply. ditty ships with built-in presets for common programs: python, node, gdb, lldb, irb, rails, sqlite3, mysql, psql, lua, R. Use `ditty list-presets` to see all available presets.
 
-Presets are matched against the full command line (basename + arguments), so `rails console` and `bundle exec rspec` can be matched precisely. Presets can set any `ditty start` flag as a default — not just `--prompt`, but also `--env`, `--idle-timeout`, `--echo`, etc. Explicit CLI flags always take precedence over preset values.
+Presets are matched against the full command line (basename + arguments), so `rails console` and `bundle exec rspec` can be matched precisely. Presets can set any `ditty start` flag as a default — not just `--prompt`, but also `--env`, `--idle-timeout`, `--no-echo`, etc. Explicit CLI flags always take precedence over preset values.
 
 You can select a preset explicitly by name with `--preset`:
 
@@ -139,7 +139,7 @@ You can define your own presets in `~/.ditty/presets` (or a custom path via `--p
 # First match wins. Lines starting with # are comments.
 myrepl	^myrepl( |$)	--prompt='myrepl> $'
 rspec	rspec( |$)	--prompt='> $'
-headless		--prompt='> $' --echo=false
+headless		--prompt='> $' --no-echo
 ```
 
 Values with spaces must be quoted (single or double quotes). User presets are checked before built-ins, so you can override built-in patterns.
@@ -175,12 +175,12 @@ ditty start --env=TERM=dumb --env=PYTHONDONTWRITEBYTECODE=1 python3
 
 This is particularly useful in presets — for example, the built-in irb preset sets `TERM=dumb` to avoid terminal control sequence issues.
 
-### `--echo` / `--echo=false`
+### `--no-echo`
 
-By default, the pty echoes input back in the output (like a real terminal). Use `--echo=false` to strip the echoed input, which is cleaner for scripting:
+By default, the pty echoes input back in the output (like a real terminal). Use `--no-echo` to strip the echoed input, which is cleaner for scripting:
 
 ```bash
-ditty start --echo=false python3
+ditty start --no-echo python3
 ditty continue 'print(42)'
 # Output: just "42" and the prompt, no "print(42)" echo
 ```

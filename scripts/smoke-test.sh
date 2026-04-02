@@ -137,9 +137,9 @@ assert_contains "auto name shows prompt" "$out" ">>>"
 run_ditty kill >/dev/null
 
 # ---------------------------------------------------------------------------
-echo "=== --echo=false ==="
+echo "=== --no-echo ==="
 
-run_ditty start --name=noecho --echo=false python3 >/dev/null
+run_ditty start --name=noecho --no-echo python3 >/dev/null
 
 out=$(run_ditty continue --name=noecho 'print("visible")')
 assert_contains "no-echo shows output" "$out" "visible"

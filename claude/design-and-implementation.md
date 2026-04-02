@@ -84,7 +84,7 @@ Unix domain sockets have a hard 108-byte path limit (both macOS and Linux). With
 
 ## Echo Control
 
-When a pty is in use, the terminal line discipline echoes input. This means `ditty continue 'print(42)'` shows `print(42)` in the output. The `--echo=false` flag strips this by tracking the expected echo text and removing it from the output stream. This is done at the output level (not via termios) because programs like Python's readline actively manage the ECHO flag and override any changes.
+When a pty is in use, the terminal line discipline echoes input. This means `ditty continue 'print(42)'` shows `print(42)` in the output. The `--no-echo` flag strips this by tracking the expected echo text and removing it from the output stream. This is done at the output level (not via termios) because programs like Python's readline actively manage the ECHO flag and override any changes.
 
 ## Signal Handling
 

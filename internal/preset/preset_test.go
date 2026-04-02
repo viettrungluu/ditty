@@ -96,7 +96,7 @@ func TestLookupUserPresets(t *testing.T) {
 	content := "# My presets\n" +
 		"myrepl\t^myrepl( |$)\t--prompt='myrepl> $'\n" +
 		"python\t^python\\d*( |$)\t--prompt='CUSTOM>>> $' --env=PYTHONDONTWRITEBYTECODE=1\n" +
-		"headless\t\t--prompt='> $' --echo=false\n"
+		"headless\t\t--prompt='> $' --no-echo\n"
 	if err := os.WriteFile(presetsFile, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -261,9 +261,9 @@ func TestParseFlags(t *testing.T) {
 			want:  map[string]string{"env": "TERM=dumb\x00FOO=bar"},
 		},
 		{
-			name:  "echo false",
-			input: "--echo=false",
-			want:  map[string]string{"echo": "false"},
+			name:  "no-echo",
+			input: "--no-echo",
+			want:  map[string]string{"no-echo": "true"},
 		},
 		{
 			name:  "mixed",

@@ -15,7 +15,7 @@ import (
 func newDaemonCmd() *cobra.Command {
 	var name string
 	var idleTimeout time.Duration
-	var echo bool
+	var noEcho bool
 	var bufSize int
 	var promptPattern string
 	var noPty bool
@@ -35,7 +35,7 @@ func newDaemonCmd() *cobra.Command {
 				Command:     args[0],
 				Args:        args[1:],
 				IdleTimeout: idleTimeout,
-				Echo:        echo,
+				Echo:        !noEcho,
 				BufSize:     bufSize,
 				NoPty:       noPty,
 				Suspend:     suspend,
@@ -55,7 +55,7 @@ func newDaemonCmd() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "session name")
 	cmd.Flags().DurationVar(&idleTimeout, "idle-timeout",
 		prompt.DefaultIdleTimeout, "prompt detection idle timeout")
-	cmd.Flags().BoolVar(&echo, "echo", true, "echo input back in output")
+	cmd.Flags().BoolVar(&noEcho, "no-echo", false, "suppress input echo")
 	cmd.Flags().IntVar(&bufSize, "buffer-size", 0,
 		"ring buffer size in bytes (0 means default)")
 	cmd.Flags().StringVar(&promptPattern, "prompt", "",

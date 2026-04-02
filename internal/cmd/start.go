@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/viettrungluu/ditty/internal/dlog"
+	"github.com/viettrungluu/ditty/internal/preset"
 	"github.com/viettrungluu/ditty/internal/protocol"
 	"github.com/viettrungluu/ditty/internal/session"
 )
@@ -23,7 +24,8 @@ func newStartCmd() *cobra.Command {
 	var promptPattern string
 	var noPty bool
 	var suspend bool
-	var noPreset bool
+	var noBuiltinPresets bool
+	var presetsFile string
 
 	cmd := &cobra.Command{
 		Use:   "start [flags] PROGRAM [ARGS...]",
@@ -32,7 +34,15 @@ func newStartCmd() *cobra.Command {
 its initial output until the first prompt appears.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStart(name, idleTimeout, echo, bufSize, promptPattern, noPty, suspend, noPreset, args)
+			// Resolve default presets file if not specified.
+			if presetsFile == "" {
+				if p, err := preset.DefaultPresetsFile(); err == nil {
+					presetsFile = p
+				}
+			}
+			return runStart(name, idleTimeout, echo, bufSize,
+				promptPattern, noPty, suspend, noBuiltinPresets,
+				presetsFile, args)
 		},
 	}
 
@@ -45,25 +55,41 @@ its initial output until the first prompt appears.`,
 	cmd.Flags().IntVar(&bufSize, "buffer-size", 0,
 		"background output ring buffer size in bytes (default: 1MB)")
 	cmd.Flags().StringVar(&promptPattern, "prompt", "",
-		"regex pattern for prompt detection (overrides idle timeout)")
+		"regex pattern for prompt detection (overrides presets)")
 	cmd.Flags().BoolVar(&noPty, "no-pty", false,
 		"use pipes instead of a pty (for programs that don't need a terminal)")
 	cmd.Flags().BoolVar(&suspend, "suspend", false,
 		"SIGSTOP the child between commands (some programs handle this poorly)")
-	cmd.Flags().BoolVar(&noPreset, "no-preset", false,
-		"disable auto-detection of prompt presets, use idle timeout instead")
+	cmd.Flags().BoolVar(&noBuiltinPresets, "no-builtin-presets", false,
+		"disable built-in prompt presets (user presets file still applies)")
+	cmd.Flags().StringVar(&presetsFile, "presets-file", "",
+		"path to presets file (default: ~/.ditty/presets)")
 
 	return cmd
 }
 
 // runStart launches the daemon and streams initial output.
-func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, promptPattern string, noPty bool, suspend bool, noPreset bool, args []string) error {
+func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, promptPattern string, noPty bool, suspend bool, noBuiltinPresets bool, presetsFile string, args []string) error {
 	// Generate a name if not provided.
 	if name == "" {
 		var err error
 		name, err = session.GenerateName()
 		if err != nil {
 			return err
+		}
+	}
+
+	// Resolve prompt pattern: explicit --prompt > presets > idle timeout.
+	if promptPattern == "" {
+		re, matched, err := preset.Lookup(
+			args[0], presetsFile, !noBuiltinPresets)
+		if err != nil {
+			return fmt.Errorf("preset lookup: %w", err)
+		}
+		if re != nil {
+			dlog.Printf("start: using preset (matched %s) for %s",
+				matched, args[0])
+			promptPattern = re.String()
 		}
 	}
 
@@ -108,9 +134,6 @@ func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, pr
 	}
 	if suspend {
 		daemonArgs = append(daemonArgs, "--suspend")
-	}
-	if noPreset {
-		daemonArgs = append(daemonArgs, "--no-preset")
 	}
 	daemonArgs = append(daemonArgs, "--")
 	daemonArgs = append(daemonArgs, args...)

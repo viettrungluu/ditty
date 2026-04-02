@@ -188,13 +188,30 @@ assert_contains "preset auto-detects python" "$out" "preset"
 
 run_ditty kill --name=preset >/dev/null
 
-# --no-preset should fall back to idle timeout (still works, just slower).
-run_ditty start --name=nopreset --no-preset python3 >/dev/null
+# --no-builtin-presets should fall back to idle timeout (still works, just slower).
+run_ditty start --name=nopreset --no-builtin-presets python3 >/dev/null
 
 out=$(run_ditty continue --name=nopreset 'print("fallback")')
-assert_contains "no-preset falls back" "$out" "fallback"
+assert_contains "no-builtin-presets falls back" "$out" "fallback"
 
 run_ditty kill --name=nopreset >/dev/null
+
+# User presets file should work.
+PRESETS_FILE="$HOME/.ditty/user-presets"
+mkdir -p "$(dirname "$PRESETS_FILE")"
+printf '^mypython$\t(>>>|\\.\\.\\.) $\n' > "$PRESETS_FILE"
+
+# Create a symlink so "mypython" resolves to python3.
+MYPYTHON="$HOME/.ditty/mypython"
+ln -sf "$(command -v python3)" "$MYPYTHON"
+
+run_ditty start --name=userpreset --presets-file="$PRESETS_FILE" "$MYPYTHON" >/dev/null
+
+out=$(run_ditty continue --name=userpreset 'print("custom")')
+assert_contains "user presets file works" "$out" "custom"
+
+run_ditty kill --name=userpreset >/dev/null
+rm -f "$PRESETS_FILE" "$MYPYTHON"
 
 # ---------------------------------------------------------------------------
 echo "=== --suspend ==="

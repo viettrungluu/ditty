@@ -53,9 +53,16 @@ Regex matching fires as soon as the pattern matches, with only a 10ms debounce �
 
 When no regex is available, the detector waits for output to go silent for a configurable duration (default 200ms), then checks if the last byte is not `\n`. REPL prompts are nearly always partial lines (`>>> `, `(gdb) `, etc.), while normal output almost always ends with `\n`. This heuristic works for most programs with zero configuration, at the cost of added latency.
 
-### Built-in presets
+### Presets (built-in + custom)
 
-ditty ships with prompt regexes for common programs: python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R. The program name is matched after stripping version suffixes (e.g., `python3.12` → `python`). Presets are applied automatically unless `--prompt` is set or `--no-preset` is passed.
+Presets are pairs of regexes: a command regex (matched against the program basename) and a prompt regex. They are loaded from two sources, checked in order:
+
+1. **User presets file** (`~/.ditty/presets` by default, overridable with `--presets-file`). Tab-separated pairs of regexes, one per line.
+2. **Built-in presets** compiled into the binary: python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R.
+
+First match on the command regex wins. User presets are checked before built-ins, allowing overrides. `--no-builtin-presets` disables built-ins (user file still applies).
+
+Preset resolution happens in the `start` command, which passes the resolved regex to the daemon via `--prompt`. The daemon itself doesn't know about presets — it just receives a regex.
 
 ## Background Output
 

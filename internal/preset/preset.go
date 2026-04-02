@@ -1,129 +1,137 @@
-// Package preset provides built-in prompt patterns for common REPLs.
+// Package preset provides prompt pattern presets for common REPLs.
 //
-// When a session is started without an explicit --prompt, the program name
-// is matched against known presets to auto-select a prompt regex.
+// Presets are loaded from two sources:
+//  1. A user presets file (default: ~/.ditty/presets, overridable with --presets-file).
+//  2. Built-in presets compiled into the binary.
+//
+// User presets are checked first, then built-ins. First match on the command
+// regex wins.
+//
+// File format: tab-separated pairs of regexes, one per line. Lines starting
+// with # and blank lines are ignored.
+//
+//	# command_regex	prompt_regex
+//	python\d*(\.\d+)*$	(>>>|\.\.\.) $
+//	node\d*$	> $
 package preset
 
 import (
+	"bufio"
+	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
 
-// Entry is a preset prompt configuration.
+// Entry is a preset: a command pattern and a prompt pattern.
 type Entry struct {
-	// Name is the display name of the preset (e.g., "python").
-	Name string
-	// PromptRegex is the compiled prompt pattern.
+	// CommandRegex matches against the command basename.
+	CommandRegex *regexp.Regexp
+	// PromptRegex is the prompt pattern to use when CommandRegex matches.
 	PromptRegex *regexp.Regexp
 }
 
-// presets maps program name prefixes to prompt patterns. The key is matched
-// against the basename of the command (after stripping version suffixes).
-var presets = map[string]Entry{
-	"python": {
-		Name:        "python",
-		PromptRegex: regexp.MustCompile(`(>>>|\.\.\.) $`),
-	},
-	"node": {
-		Name:        "node",
-		PromptRegex: regexp.MustCompile(`> $`),
-	},
-	"gdb": {
-		Name:        "gdb",
-		PromptRegex: regexp.MustCompile(`\(gdb\) $`),
-	},
-	"lldb": {
-		Name:        "lldb",
-		PromptRegex: regexp.MustCompile(`\(lldb\) $`),
-	},
-	"irb": {
-		Name:        "irb",
-		PromptRegex: regexp.MustCompile(`irb.*> $`),
-	},
-	"sqlite3": {
-		Name:        "sqlite3",
-		PromptRegex: regexp.MustCompile(`sqlite> $`),
-	},
-	"mysql": {
-		Name:        "mysql",
-		PromptRegex: regexp.MustCompile(`mysql> $`),
-	},
-	"psql": {
-		Name:        "psql",
-		PromptRegex: regexp.MustCompile(`[=#]> $`),
-	},
-	"lua": {
-		Name:        "lua",
-		PromptRegex: regexp.MustCompile(`> $`),
-	},
-	"R": {
-		Name:        "R",
-		PromptRegex: regexp.MustCompile(`> $`),
-	},
+// builtins are the compiled built-in presets.
+var builtins = []Entry{
+	{regexp.MustCompile(`^python\d*(\.\d+)*$`), regexp.MustCompile(`(>>>|\.\.\.) $`)},
+	{regexp.MustCompile(`^node\d*$`), regexp.MustCompile(`> $`)},
+	{regexp.MustCompile(`^gdb$`), regexp.MustCompile(`\(gdb\) $`)},
+	{regexp.MustCompile(`^lldb$`), regexp.MustCompile(`\(lldb\) $`)},
+	{regexp.MustCompile(`^irb\d*(\.\d+)*$`), regexp.MustCompile(`irb.*> $`)},
+	{regexp.MustCompile(`^sqlite3$`), regexp.MustCompile(`sqlite> $`)},
+	{regexp.MustCompile(`^mysql$`), regexp.MustCompile(`mysql> $`)},
+	{regexp.MustCompile(`^psql$`), regexp.MustCompile(`[=#]> $`)},
+	{regexp.MustCompile(`^lua\d*(\.\d+)*$`), regexp.MustCompile(`> $`)},
+	{regexp.MustCompile(`^R$`), regexp.MustCompile(`> $`)},
 }
 
-// Lookup finds a preset for the given command. It checks the basename of
-// the command, stripping common version suffixes (e.g., "python3.12" →
-// "python"). Returns nil if no preset matches.
-func Lookup(command string) *Entry {
+// DefaultPresetsFile returns the default path to the user presets file.
+func DefaultPresetsFile() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".ditty", "presets"), nil
+}
+
+// Lookup finds the first matching preset for the given command. It checks
+// entries in order: user presets first, then built-ins. The command is
+// matched against the basename.
+//
+// If presetsFile is non-empty, user presets are loaded from it. If
+// includeBuiltins is true, built-in presets are appended after user presets.
+func Lookup(command string, presetsFile string, includeBuiltins bool) (*regexp.Regexp, string, error) {
 	base := filepath.Base(command)
 
-	// Try exact match first.
-	if e, ok := presets[base]; ok {
-		return &e
-	}
+	var entries []Entry
 
-	// Strip version suffixes: "python3.12" → "python3" → "python",
-	// "node18" → "node".
-	normalized := stripVersion(base)
-	if e, ok := presets[normalized]; ok {
-		return &e
-	}
-
-	return nil
-}
-
-// List returns all available preset names.
-func List() []string {
-	names := make([]string, 0, len(presets))
-	for _, e := range presets {
-		names = append(names, e.Name)
-	}
-	return names
-}
-
-// stripVersion removes version suffixes from a program name.
-// "python3.12" → "python", "python3" → "python", "node18" → "node".
-func stripVersion(name string) string {
-	// Strip trailing digits and dots: "python3.12" → "python"
-	i := len(name)
-	for i > 0 && (name[i-1] >= '0' && name[i-1] <= '9' || name[i-1] == '.') {
-		i--
-	}
-	stripped := name[:i]
-
-	// If we stripped everything or got an empty string, try removing
-	// just the last segment after a dot.
-	if stripped == "" {
-		return name
-	}
-
-	// Also try without trailing digits on the stripped version:
-	// "python3" already became "python" above. But handle "Rscript" etc.
-	if idx := strings.LastIndexAny(stripped, "0123456789"); idx > 0 {
-		// Only strip if the digits are at the end.
-		allDigits := true
-		for _, c := range stripped[idx:] {
-			if c < '0' || c > '9' {
-				allDigits = false
-				break
+	// Load user presets file.
+	if presetsFile != "" {
+		userEntries, err := LoadFile(presetsFile)
+		if err != nil {
+			// File not existing is fine — it's optional.
+			if !os.IsNotExist(err) {
+				return nil, "", fmt.Errorf("load presets file: %w", err)
 			}
 		}
-		if allDigits {
-			return stripped[:idx]
-		}
+		entries = append(entries, userEntries...)
 	}
 
-	return stripped
+	// Append built-ins.
+	if includeBuiltins {
+		entries = append(entries, builtins...)
+	}
+
+	// First match wins.
+	for _, e := range entries {
+		if e.CommandRegex.MatchString(base) {
+			return e.PromptRegex, e.CommandRegex.String(), nil
+		}
+	}
+	return nil, "", nil
+}
+
+// LoadFile parses a presets file. Each non-empty, non-comment line is a
+// tab-separated pair: command_regex<TAB>prompt_regex.
+func LoadFile(path string) ([]Entry, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var entries []Entry
+	scanner := bufio.NewScanner(f)
+	lineNum := 0
+	for scanner.Scan() {
+		lineNum++
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("%s:%d: expected tab-separated command_regex and prompt_regex",
+				path, lineNum)
+		}
+
+		cmdRe, err := regexp.Compile(parts[0])
+		if err != nil {
+			return nil, fmt.Errorf("%s:%d: invalid command regex: %w",
+				path, lineNum, err)
+		}
+		promptRe, err := regexp.Compile(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf("%s:%d: invalid prompt regex: %w",
+				path, lineNum, err)
+		}
+
+		entries = append(entries, Entry{
+			CommandRegex: cmdRe,
+			PromptRegex:  promptRe,
+		})
+	}
+	return entries, scanner.Err()
 }

@@ -98,15 +98,25 @@ ditty start --name=db --prompt='\(gdb\) $' gdb ./a.out
 
 This is the most precise — ditty returns as soon as the regex matches, with no delay.
 
-### 2. Built-in presets (automatic)
+### 2. Presets (automatic + custom)
 
-For common programs, ditty auto-detects a prompt regex from the command name. Currently supported: python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R. Version suffixes are handled (e.g., `python3.12` matches `python`).
+ditty ships with built-in prompt regexes for common programs: python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R. These are applied automatically based on the command name (version suffixes like `python3.12` are handled).
 
-Presets are used automatically unless `--prompt` is set or `--no-preset` is passed.
+You can also define your own presets in `~/.ditty/presets` (or a custom path via `--presets-file`). The file format is tab-separated pairs of regexes, one per line:
+
+```
+# command_regex<TAB>prompt_regex
+# First match wins. Lines starting with # are comments.
+^myrepl$	myrepl> $
+^python\d*(\.\d+)*$	(>>>|\.\.\.) $
+```
+
+User presets are checked before built-ins, so you can override built-in patterns. Precedence: `--prompt` > user presets file > built-in presets > idle timeout.
 
 ```bash
-ditty start python3                  # auto-detects ">>> " prompt
-ditty start --no-preset python3      # force idle timeout instead
+ditty start python3                              # auto-detects ">>> "
+ditty start --no-builtin-presets python3          # skip builtins, use idle timeout
+ditty start --presets-file=./my-presets python3   # use custom presets file
 ```
 
 ### 3. Idle timeout (fallback)

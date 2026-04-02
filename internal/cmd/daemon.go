@@ -7,8 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/viettrungluu/ditty/internal/daemon"
-	"github.com/viettrungluu/ditty/internal/dlog"
-	"github.com/viettrungluu/ditty/internal/preset"
 	"github.com/viettrungluu/ditty/internal/prompt"
 )
 
@@ -22,7 +20,6 @@ func newDaemonCmd() *cobra.Command {
 	var promptPattern string
 	var noPty bool
 	var suspend bool
-	var noPreset bool
 
 	cmd := &cobra.Command{
 		Use:    "_daemon",
@@ -48,13 +45,6 @@ func newDaemonCmd() *cobra.Command {
 					return fmt.Errorf("invalid --prompt regex: %w", err)
 				}
 				cfg.PromptRegex = re
-			} else if !noPreset {
-				// Auto-detect a prompt preset from the command name.
-				if e := preset.Lookup(args[0]); e != nil {
-					dlog.Printf("daemon: using preset %q for %s",
-						e.Name, args[0])
-					cfg.PromptRegex = e.PromptRegex
-				}
 			}
 			return daemon.Run(cfg)
 		},
@@ -72,8 +62,6 @@ func newDaemonCmd() *cobra.Command {
 		"use pipes instead of a pty")
 	cmd.Flags().BoolVar(&suspend, "suspend", false,
 		"SIGSTOP the child between commands")
-	cmd.Flags().BoolVar(&noPreset, "no-preset", false,
-		"disable auto-detection of prompt presets")
 
 	return cmd
 }

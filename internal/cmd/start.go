@@ -26,6 +26,7 @@ func newStartCmd() *cobra.Command {
 	var suspend bool
 	var noBuiltinPresets bool
 	var presetsFile string
+	var presetName string
 	var envVars []string
 
 	cmd := &cobra.Command{
@@ -43,13 +44,15 @@ its initial output until the first prompt appears.`,
 			}
 
 			// Look up preset and apply defaults for unset flags.
+			commandLine := preset.BuildCommandLine(args)
 			flags, matched, err := preset.Lookup(
-				args[0], presetsFile, !noBuiltinPresets)
+				commandLine, presetName, presetsFile,
+				!noBuiltinPresets)
 			if err != nil {
 				return fmt.Errorf("preset lookup: %w", err)
 			}
 			if flags != "" {
-				dlog.Printf("start: preset matched %s, flags: %s",
+				dlog.Printf("start: preset %q matched, flags: %s",
 					matched, flags)
 				parsed := preset.ParseFlags(flags)
 				applyPresetDefaults(cmd, parsed,
@@ -80,6 +83,8 @@ its initial output until the first prompt appears.`,
 		"disable built-in presets (user presets file still applies)")
 	cmd.Flags().StringVar(&presetsFile, "presets-file", "",
 		"path to presets file (default: ~/.ditty/presets)")
+	cmd.Flags().StringVar(&presetName, "preset", "",
+		"use a named preset (e.g., python, rails, gdb)")
 	cmd.Flags().StringArrayVar(&envVars, "env", nil,
 		"set environment variable for the child (KEY=VALUE, repeatable)")
 

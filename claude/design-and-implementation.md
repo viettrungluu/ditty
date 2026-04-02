@@ -55,14 +55,18 @@ When no regex is available, the detector waits for output to go silent for a con
 
 ### Presets (built-in + custom)
 
-Presets are pairs of: a command regex (matched against the program basename) and a string of `ditty start` flags to apply as defaults. This is a general mechanism — presets can configure any aspect of the session, not just the prompt pattern. For example, the built-in irb preset sets both `--prompt` and `--env=TERM=dumb`.
+Each preset has a **name**, one or more **command regexes**, and a string of `ditty start` **flags** to apply as defaults. This is a general mechanism — presets can configure any aspect of the session, not just the prompt pattern. For example, the built-in irb preset sets both `--prompt` and `--env=TERM=dumb`.
+
+Command regexes are matched against the full command line: the program basename joined with its arguments (e.g., `python3 -i`, `rails console`, `bundle exec rspec`). This allows presets to match multi-word commands precisely — the rails preset matches `rails console` and `rails c` but not bare `rails`.
+
+Presets can also be selected explicitly by name via `--preset=NAME`, bypassing regex matching. Presets with no regexes are only selectable this way.
 
 Presets are loaded from two sources, checked in order:
 
-1. **User presets file** (`~/.ditty/presets` by default, overridable with `--presets-file`). Tab-separated pairs: command regex and flags string.
+1. **User presets file** (`~/.ditty/presets` by default, overridable with `--presets-file`). Tab-separated triples: name, command regex, and flags string. The regex field can be empty for presets only selectable via `--preset`.
 2. **Built-in presets** compiled into the binary: python, node, gdb, lldb, irb, rails, sqlite3, mysql, psql, lua, R.
 
-First match on the command regex wins. User presets are checked before built-ins, allowing overrides. `--no-builtin-presets` disables built-ins (user file still applies). Explicit CLI flags always take precedence over preset flags (checked via cobra's `Flags().Changed()`).
+First match wins. User presets are checked before built-ins, allowing overrides. `--no-builtin-presets` disables built-ins (user file still applies). Explicit CLI flags always take precedence over preset flags (checked via cobra's `Flags().Changed()`). `ditty list-presets` shows all available presets.
 
 Preset resolution happens entirely in the `start` command. The daemon doesn't know about presets — it just receives the resolved flags.
 

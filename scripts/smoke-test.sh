@@ -196,10 +196,10 @@ assert_contains "no-builtin-presets falls back" "$out" "fallback"
 
 run_ditty kill --name=nopreset >/dev/null
 
-# User presets file with flag syntax.
+# User presets file with new 3-field format: name<TAB>regex<TAB>flags.
 PRESETS_FILE="$HOME/.ditty/user-presets"
 mkdir -p "$(dirname "$PRESETS_FILE")"
-printf "^mypython\$\t--prompt='(>>>|\\\\.\\\\.\\\\.\\\\.) \$'\n" > "$PRESETS_FILE"
+printf "mypython\t^mypython( |\$)\t--prompt='(>>>|\\\\.\\\\.\\\\.\\\\.) \$'\n" > "$PRESETS_FILE"
 
 # Create a symlink so "mypython" resolves to python3.
 MYPYTHON="$HOME/.ditty/mypython"
@@ -295,6 +295,25 @@ else
 fi
 
 run_ditty kill --name=termreset2 >/dev/null
+
+# ---------------------------------------------------------------------------
+echo "=== --preset flag ==="
+
+run_ditty start --name=presetflag --preset=python python3 >/dev/null
+
+out=$(run_ditty continue --name=presetflag 'print("preset-flag")')
+assert_contains "--preset selects by name" "$out" "preset-flag"
+
+run_ditty kill --name=presetflag >/dev/null
+
+# ---------------------------------------------------------------------------
+echo "=== list-presets ==="
+
+out=$(run_ditty list-presets)
+assert_contains "list-presets shows python" "$out" "python"
+assert_contains "list-presets shows rails" "$out" "rails"
+assert_contains "list-presets shows gdb" "$out" "gdb"
+assert_contains "list-presets shows NAME header" "$out" "NAME"
 
 # ---------------------------------------------------------------------------
 echo "=== Missing session error ==="

@@ -4,19 +4,20 @@
 //  1. A user presets file (default: ~/.ditty/presets, overridable with --presets-file).
 //  2. Built-in presets compiled into the binary.
 //
-// Each preset is a pair: a command regex (matched against the program basename)
-// and a string of ditty start flags to apply as defaults. User presets are
-// checked first, then built-ins. First match wins. Explicit CLI flags always
-// take precedence over preset flags.
+// Each preset has a name, zero or more command regexes (matched against the
+// command line: basename + args), and a string of ditty start flags. Presets
+// with no regexes are only selectable via --preset=NAME.
 //
-// File format: tab-separated pairs, one per line. Lines starting with # and
+// User presets are checked first, then built-ins. First match wins. Explicit
+// CLI flags always take precedence over preset flags.
+//
+// File format: tab-separated triples, one per line. Lines starting with # and
 // blank lines are ignored.
 //
-//	# command_regex	flags
-//	^python\d*(\.\d+)*$	--prompt=(>>>|\.\.\.) $
-//	^irb\d*$	--env=TERM=dumb
-//	^rails$	--prompt=(irb.*|pry.*)> $ --env=TERM=dumb
-//	^gdb$	--prompt=\(gdb\) $
+//	# name	command_regex	flags
+//	python	^python\d*(\.\d+)*( |$)	--prompt='(>>>|\.\.\.) $'
+//	rails	^rails (console|c)( |$)	--prompt='(irb.*|pry.*)> $' --env=TERM=dumb
+//	myrepl		--prompt='> $'
 package preset
 
 import (
@@ -28,27 +29,104 @@ import (
 	"strings"
 )
 
-// Entry is a preset: a command pattern and flags to apply.
+// Entry is a named preset with optional command regexes and flags.
 type Entry struct {
-	// CommandRegex matches against the command basename.
-	CommandRegex *regexp.Regexp
-	// Flags is the raw flags string (e.g., "--prompt=(>>>|\\.\\.\\.) $").
+	// Name identifies the preset (e.g., "python", "rails").
+	Name string
+	// CommandRegexes match against the command line (basename + args,
+	// space-separated). If empty, the preset is only selectable via
+	// --preset=NAME.
+	CommandRegexes []*regexp.Regexp
+	// Flags is the raw flags string (e.g., "--prompt='>>> $'").
 	Flags string
 }
 
 // builtins are the compiled built-in presets.
 var builtins = []Entry{
-	{regexp.MustCompile(`^python\d*(\.\d+)*$`), `--prompt='(>>>|\.\.\.) $'`},
-	{regexp.MustCompile(`^node\d*$`), `--prompt='> $'`},
-	{regexp.MustCompile(`^gdb$`), `--prompt='\(gdb\) $'`},
-	{regexp.MustCompile(`^lldb$`), `--prompt='\(lldb\) $'`},
-	{regexp.MustCompile(`^irb\d*(\.\d+)*$`), `--prompt='irb.*> $' --env=TERM=dumb`},
-	{regexp.MustCompile(`^rails$`), `--prompt='(irb.*|pry.*)> $' --env=TERM=dumb`},
-	{regexp.MustCompile(`^sqlite3$`), `--prompt='sqlite> $'`},
-	{regexp.MustCompile(`^mysql$`), `--prompt='mysql> $'`},
-	{regexp.MustCompile(`^psql$`), `--prompt='[=#]> $'`},
-	{regexp.MustCompile(`^lua\d*(\.\d+)*$`), `--prompt='> $'`},
-	{regexp.MustCompile(`^R$`), `--prompt='> $'`},
+	{
+		Name: "python",
+		CommandRegexes: []*regexp.Regexp{
+			regexp.MustCompile(`^python\d*(\.\d+)*( |$)`),
+		},
+		Flags: `--prompt='(>>>|\.\.\.) $'`,
+	},
+	{
+		Name: "node",
+		CommandRegexes: []*regexp.Regexp{
+			regexp.MustCompile(`^node\d*( |$)`),
+		},
+		Flags: `--prompt='> $'`,
+	},
+	{
+		Name: "gdb",
+		CommandRegexes: []*regexp.Regexp{
+			regexp.MustCompile(`^gdb( |$)`),
+		},
+		Flags: `--prompt='\(gdb\) $'`,
+	},
+	{
+		Name: "lldb",
+		CommandRegexes: []*regexp.Regexp{
+			regexp.MustCompile(`^lldb( |$)`),
+		},
+		Flags: `--prompt='\(lldb\) $'`,
+	},
+	{
+		Name: "irb",
+		CommandRegexes: []*regexp.Regexp{
+			regexp.MustCompile(`^irb\d*(\.\d+)*( |$)`),
+		},
+		Flags: `--prompt='irb.*> $' --env=TERM=dumb`,
+	},
+	{
+		Name: "rails",
+		CommandRegexes: []*regexp.Regexp{
+			regexp.MustCompile(`^rails (console|c)( |$)`),
+		},
+		Flags: `--prompt='(irb.*|pry.*)> $' --env=TERM=dumb`,
+	},
+	{
+		Name: "sqlite3",
+		CommandRegexes: []*regexp.Regexp{
+			regexp.MustCompile(`^sqlite3( |$)`),
+		},
+		Flags: `--prompt='sqlite> $'`,
+	},
+	{
+		Name: "mysql",
+		CommandRegexes: []*regexp.Regexp{
+			regexp.MustCompile(`^mysql( |$)`),
+		},
+		Flags: `--prompt='mysql> $'`,
+	},
+	{
+		Name: "psql",
+		CommandRegexes: []*regexp.Regexp{
+			regexp.MustCompile(`^psql( |$)`),
+		},
+		Flags: `--prompt='[=#]> $'`,
+	},
+	{
+		Name: "lua",
+		CommandRegexes: []*regexp.Regexp{
+			regexp.MustCompile(`^lua\d*(\.\d+)*( |$)`),
+		},
+		Flags: `--prompt='> $'`,
+	},
+	{
+		Name: "R",
+		CommandRegexes: []*regexp.Regexp{
+			regexp.MustCompile(`^R( |$)`),
+		},
+		Flags: `--prompt='> $'`,
+	},
+}
+
+// Builtins returns a copy of the built-in preset entries.
+func Builtins() []Entry {
+	out := make([]Entry, len(builtins))
+	copy(out, builtins)
+	return out
 }
 
 // DefaultPresetsFile returns the default path to the user presets file.
@@ -60,13 +138,30 @@ func DefaultPresetsFile() (string, error) {
 	return filepath.Join(home, ".ditty", "presets"), nil
 }
 
-// Lookup finds the first matching preset for the given command. It checks
-// entries in order: user presets first, then built-ins. The command is
-// matched against the basename.
+// BuildCommandLine constructs the match string for preset regex matching
+// from a command and its arguments. The command is reduced to its basename;
+// arguments are appended space-separated.
+func BuildCommandLine(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	parts := make([]string, len(args))
+	parts[0] = filepath.Base(args[0])
+	for i := 1; i < len(args); i++ {
+		parts[i] = args[i]
+	}
+	return strings.Join(parts, " ")
+}
+
+// Lookup finds the first matching preset. If presetName is non-empty, it
+// looks up by name directly. Otherwise, it matches commandLine against
+// preset regexes. Entries are checked in order: user presets first, then
+// built-ins. First match wins.
 //
-// Returns the flags string and the matched command regex (for logging).
-func Lookup(command string, presetsFile string, includeBuiltins bool) (string, string, error) {
-	base := filepath.Base(command)
+// Returns the flags string and the matched preset name (for logging).
+// Returns an error if presetName is specified but not found.
+func Lookup(commandLine string, presetName string, presetsFile string,
+	includeBuiltins bool) (string, string, error) {
 
 	var entries []Entry
 
@@ -86,17 +181,30 @@ func Lookup(command string, presetsFile string, includeBuiltins bool) (string, s
 		entries = append(entries, builtins...)
 	}
 
-	// First match wins.
+	// If --preset=NAME is specified, find by name.
+	if presetName != "" {
+		for _, e := range entries {
+			if e.Name == presetName {
+				return e.Flags, e.Name, nil
+			}
+		}
+		return "", "", fmt.Errorf("preset %q not found", presetName)
+	}
+
+	// Auto-detect: match command line against regexes.
 	for _, e := range entries {
-		if e.CommandRegex.MatchString(base) {
-			return e.Flags, e.CommandRegex.String(), nil
+		for _, re := range e.CommandRegexes {
+			if re.MatchString(commandLine) {
+				return e.Flags, e.Name, nil
+			}
 		}
 	}
 	return "", "", nil
 }
 
 // LoadFile parses a presets file. Each non-empty, non-comment line is a
-// tab-separated pair: command_regex<TAB>flags.
+// tab-separated triple: name<TAB>command_regex<TAB>flags. The regex field
+// may be empty (preset is only selectable via --preset=NAME).
 func LoadFile(path string) ([]Entry, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -114,21 +222,31 @@ func LoadFile(path string) ([]Entry, error) {
 			continue
 		}
 
-		parts := strings.SplitN(line, "\t", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("%s:%d: expected tab-separated command_regex and flags",
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) < 3 {
+			return nil, fmt.Errorf(
+				"%s:%d: expected tab-separated name, command_regex, and flags",
 				path, lineNum)
 		}
 
-		cmdRe, err := regexp.Compile(parts[0])
-		if err != nil {
-			return nil, fmt.Errorf("%s:%d: invalid command regex: %w",
-				path, lineNum, err)
+		name := parts[0]
+		regexStr := parts[1]
+		flags := parts[2]
+
+		var regexes []*regexp.Regexp
+		if regexStr != "" {
+			re, err := regexp.Compile(regexStr)
+			if err != nil {
+				return nil, fmt.Errorf("%s:%d: invalid command regex: %w",
+					path, lineNum, err)
+			}
+			regexes = append(regexes, re)
 		}
 
 		entries = append(entries, Entry{
-			CommandRegex: cmdRe,
-			Flags:        parts[1],
+			Name:           name,
+			CommandRegexes: regexes,
+			Flags:          flags,
 		})
 	}
 	return entries, scanner.Err()
@@ -136,7 +254,7 @@ func LoadFile(path string) ([]Entry, error) {
 
 // ParseFlags parses a preset flags string into key-value pairs.
 // Supports --key=value and --key (boolean). Returns a map of flag names
-// to values. Repeatable flags (like --env) accumulate as comma-joined values,
+// to values. Repeatable flags (like --env) accumulate as NUL-joined values,
 // but callers should use ParseEnvFlags for --env specifically.
 func ParseFlags(flags string) map[string]string {
 	result := make(map[string]string)

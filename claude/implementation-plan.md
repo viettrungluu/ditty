@@ -19,6 +19,7 @@ ditty/
       kill.go                     # ditty kill
       list.go                     # ditty list / ditty ls
       attach.go                   # ditty attach
+      listpresets.go              # ditty list-presets
       daemon.go                   # hidden _daemon subcommand
     daemon/                       # daemon process logic
       daemon.go                   # main loop: pty, REPL lifecycle, echo stripping
@@ -83,6 +84,8 @@ All items below are implemented, tested, committed, and pushed.
 - [x] `ditty attach` (interactive line-by-line session)
 - [x] Built-in presets (python, node, gdb, lldb, irb, rails, sqlite3, mysql, psql, lua, R)
 - [x] Presets redesigned: flag-based format (presets can set any start flag, not just prompt)
+- [x] Presets redesigned: named presets, `--preset` flag, regex matches command+args
+- [x] `ditty list-presets` command
 - [x] `--no-builtin-presets` flag to disable built-in presets
 - [x] `--env` flag (repeatable) to set environment variables for the child
 - [x] ANSI escape stripping in regex prompt detection

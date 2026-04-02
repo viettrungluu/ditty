@@ -100,6 +100,10 @@ ditty attach --name=py
 
 Lists active sessions with their status, command, PID, and uptime.
 
+### `ditty list-presets`
+
+Lists all available presets (user and built-in) with their names, match patterns, and flags.
+
 ## Prompt detection
 
 ditty needs to know when the program has finished producing output and is waiting for input (i.e., showing a prompt). It supports three strategies, in order of precedence:
@@ -117,26 +121,35 @@ This is the most precise — ditty returns as soon as the regex matches, with no
 
 ### 2. Presets (automatic + custom)
 
-ditty ships with built-in presets for common programs: python, node, gdb, lldb, irb, rails, sqlite3, mysql, psql, lua, R. These are applied automatically based on the command name (version suffixes like `python3.12` are handled).
+Each preset has a **name**, one or more **command regexes**, and a set of **flags** to apply. ditty ships with built-in presets for common programs: python, node, gdb, lldb, irb, rails, sqlite3, mysql, psql, lua, R. Use `ditty list-presets` to see all available presets.
 
-Presets can set any `ditty start` flag as a default — not just `--prompt`, but also `--env`, `--idle-timeout`, `--echo`, etc. Explicit CLI flags always take precedence over preset values.
+Presets are matched against the full command line (basename + arguments), so `rails console` and `bundle exec rspec` can be matched precisely. Presets can set any `ditty start` flag as a default — not just `--prompt`, but also `--env`, `--idle-timeout`, `--echo`, etc. Explicit CLI flags always take precedence over preset values.
 
-You can define your own presets in `~/.ditty/presets` (or a custom path via `--presets-file`). The file format is tab-separated pairs: a command regex and a string of flags. First match wins.
+You can select a preset explicitly by name with `--preset`:
+
+```bash
+ditty start --preset=python python3              # explicitly use the python preset
+ditty start --preset=rails rails console         # explicitly use the rails preset
+```
+
+You can define your own presets in `~/.ditty/presets` (or a custom path via `--presets-file`). The file format is tab-separated triples: a name, a command regex (matched against `basename args...`), and a string of flags. First match wins. The regex field can be empty for presets that are only selectable via `--preset`.
 
 ```
-# command_regex<TAB>flags
+# name<TAB>command_regex<TAB>flags
 # First match wins. Lines starting with # are comments.
-^myrepl$	--prompt='myrepl> $'
-^irb\d*$	--prompt='irb.*> $' --env=TERM=dumb
-^python\d*(\.\d+)*$	--prompt='(>>>|\.\.\.) $' --idle-timeout=100ms
+myrepl	^myrepl( |$)	--prompt='myrepl> $'
+rspec	rspec( |$)	--prompt='> $'
+headless		--prompt='> $' --echo=false
 ```
 
 Values with spaces must be quoted (single or double quotes). User presets are checked before built-ins, so you can override built-in patterns.
 
 ```bash
 ditty start python3                              # auto-detects ">>> "
+ditty start rails console                        # auto-detects rails console
 ditty start --no-builtin-presets python3          # skip builtins, use idle timeout
 ditty start --presets-file=./my-presets python3   # use custom presets file
+ditty start --preset=headless myprogram           # use a named preset
 ```
 
 ### 3. Idle timeout (fallback)

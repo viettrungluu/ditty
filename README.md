@@ -117,18 +117,21 @@ This is the most precise — ditty returns as soon as the regex matches, with no
 
 ### 2. Presets (automatic + custom)
 
-ditty ships with built-in prompt regexes for common programs: python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R. These are applied automatically based on the command name (version suffixes like `python3.12` are handled).
+ditty ships with built-in presets for common programs: python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R. These are applied automatically based on the command name (version suffixes like `python3.12` are handled).
 
-You can also define your own presets in `~/.ditty/presets` (or a custom path via `--presets-file`). The file format is tab-separated pairs of regexes, one per line:
+Presets can set any `ditty start` flag as a default — not just `--prompt`, but also `--env`, `--idle-timeout`, `--echo`, etc. Explicit CLI flags always take precedence over preset values.
+
+You can define your own presets in `~/.ditty/presets` (or a custom path via `--presets-file`). The file format is tab-separated pairs: a command regex and a string of flags. First match wins.
 
 ```
-# command_regex<TAB>prompt_regex
+# command_regex<TAB>flags
 # First match wins. Lines starting with # are comments.
-^myrepl$	myrepl> $
-^python\d*(\.\d+)*$	(>>>|\.\.\.) $
+^myrepl$	--prompt='myrepl> $'
+^irb\d*$	--prompt='irb.*> $' --env=TERM=dumb
+^python\d*(\.\d+)*$	--prompt='(>>>|\.\.\.) $' --idle-timeout=100ms
 ```
 
-User presets are checked before built-ins, so you can override built-in patterns. Precedence: `--prompt` > user presets file > built-in presets > idle timeout.
+Values with spaces must be quoted (single or double quotes). User presets are checked before built-ins, so you can override built-in patterns.
 
 ```bash
 ditty start python3                              # auto-detects ">>> "
@@ -148,6 +151,16 @@ ditty start --idle-timeout=500ms slow-repl
 ```
 
 ## Other options
+
+### `--env`
+
+Sets environment variables for the child process. Repeatable:
+
+```bash
+ditty start --env=TERM=dumb --env=PYTHONDONTWRITEBYTECODE=1 python3
+```
+
+This is particularly useful in presets — for example, the built-in irb preset sets `TERM=dumb` to avoid terminal control sequence issues.
 
 ### `--echo` / `--echo=false`
 

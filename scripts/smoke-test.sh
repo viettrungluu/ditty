@@ -196,10 +196,10 @@ assert_contains "no-builtin-presets falls back" "$out" "fallback"
 
 run_ditty kill --name=nopreset >/dev/null
 
-# User presets file should work.
+# User presets file with flag syntax.
 PRESETS_FILE="$HOME/.ditty/user-presets"
 mkdir -p "$(dirname "$PRESETS_FILE")"
-printf '^mypython$\t(>>>|\\.\\.\\.) $\n' > "$PRESETS_FILE"
+printf "^mypython\$\t--prompt='(>>>|\\\\.\\\\.\\\\.\\\\.) \$'\n" > "$PRESETS_FILE"
 
 # Create a symlink so "mypython" resolves to python3.
 MYPYTHON="$HOME/.ditty/mypython"
@@ -212,6 +212,16 @@ assert_contains "user presets file works" "$out" "custom"
 
 run_ditty kill --name=userpreset >/dev/null
 rm -f "$PRESETS_FILE" "$MYPYTHON"
+
+# ---------------------------------------------------------------------------
+echo "=== --env flag ==="
+
+run_ditty start --name=envtest --env=DITTY_TEST_VAR=hello123 python3 >/dev/null
+
+out=$(run_ditty continue --name=envtest 'import os; print(os.environ["DITTY_TEST_VAR"])')
+assert_contains "env var passed to child" "$out" "hello123"
+
+run_ditty kill --name=envtest >/dev/null
 
 # ---------------------------------------------------------------------------
 echo "=== --suspend ==="

@@ -20,6 +20,7 @@ func newDaemonCmd() *cobra.Command {
 	var promptPattern string
 	var noPty bool
 	var suspend bool
+	var envVars []string
 
 	cmd := &cobra.Command{
 		Use:    "_daemon",
@@ -38,6 +39,7 @@ func newDaemonCmd() *cobra.Command {
 				BufSize:     bufSize,
 				NoPty:       noPty,
 				Suspend:     suspend,
+				Env:         envVars,
 			}
 			if promptPattern != "" {
 				re, err := regexp.Compile(promptPattern)
@@ -62,6 +64,8 @@ func newDaemonCmd() *cobra.Command {
 		"use pipes instead of a pty")
 	cmd.Flags().BoolVar(&suspend, "suspend", false,
 		"SIGSTOP the child between commands")
+	cmd.Flags().StringArrayVar(&envVars, "env", nil,
+		"set environment variable (KEY=VALUE, repeatable)")
 
 	cmd.Flags().SetInterspersed(false)
 

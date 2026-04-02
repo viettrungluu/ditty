@@ -55,14 +55,16 @@ When no regex is available, the detector waits for output to go silent for a con
 
 ### Presets (built-in + custom)
 
-Presets are pairs of regexes: a command regex (matched against the program basename) and a prompt regex. They are loaded from two sources, checked in order:
+Presets are pairs of: a command regex (matched against the program basename) and a string of `ditty start` flags to apply as defaults. This is a general mechanism — presets can configure any aspect of the session, not just the prompt pattern. For example, the built-in irb preset sets both `--prompt` and `--env=TERM=dumb`.
 
-1. **User presets file** (`~/.ditty/presets` by default, overridable with `--presets-file`). Tab-separated pairs of regexes, one per line.
+Presets are loaded from two sources, checked in order:
+
+1. **User presets file** (`~/.ditty/presets` by default, overridable with `--presets-file`). Tab-separated pairs: command regex and flags string.
 2. **Built-in presets** compiled into the binary: python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R.
 
-First match on the command regex wins. User presets are checked before built-ins, allowing overrides. `--no-builtin-presets` disables built-ins (user file still applies).
+First match on the command regex wins. User presets are checked before built-ins, allowing overrides. `--no-builtin-presets` disables built-ins (user file still applies). Explicit CLI flags always take precedence over preset flags (checked via cobra's `Flags().Changed()`).
 
-Preset resolution happens in the `start` command, which passes the resolved regex to the daemon via `--prompt`. The daemon itself doesn't know about presets — it just receives a regex.
+Preset resolution happens entirely in the `start` command. The daemon doesn't know about presets — it just receives the resolved flags.
 
 ## Background Output
 

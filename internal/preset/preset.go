@@ -4,15 +4,18 @@
 //  1. A user presets file (default: ~/.ditty/presets, overridable with --presets-file).
 //  2. Built-in presets compiled into the binary.
 //
-// User presets are checked first, then built-ins. First match on the command
-// regex wins.
+// Each preset is a pair: a command regex (matched against the program basename)
+// and a string of ditty start flags to apply as defaults. User presets are
+// checked first, then built-ins. First match wins. Explicit CLI flags always
+// take precedence over preset flags.
 //
-// File format: tab-separated pairs of regexes, one per line. Lines starting
-// with # and blank lines are ignored.
+// File format: tab-separated pairs, one per line. Lines starting with # and
+// blank lines are ignored.
 //
-//	# command_regex	prompt_regex
-//	python\d*(\.\d+)*$	(>>>|\.\.\.) $
-//	node\d*$	> $
+//	# command_regex	flags
+//	^python\d*(\.\d+)*$	--prompt=(>>>|\.\.\.) $
+//	^irb\d*$	--env=TERM=dumb
+//	^gdb$	--prompt=\(gdb\) $
 package preset
 
 import (
@@ -24,26 +27,26 @@ import (
 	"strings"
 )
 
-// Entry is a preset: a command pattern and a prompt pattern.
+// Entry is a preset: a command pattern and flags to apply.
 type Entry struct {
 	// CommandRegex matches against the command basename.
 	CommandRegex *regexp.Regexp
-	// PromptRegex is the prompt pattern to use when CommandRegex matches.
-	PromptRegex *regexp.Regexp
+	// Flags is the raw flags string (e.g., "--prompt=(>>>|\\.\\.\\.) $").
+	Flags string
 }
 
 // builtins are the compiled built-in presets.
 var builtins = []Entry{
-	{regexp.MustCompile(`^python\d*(\.\d+)*$`), regexp.MustCompile(`(>>>|\.\.\.) $`)},
-	{regexp.MustCompile(`^node\d*$`), regexp.MustCompile(`> $`)},
-	{regexp.MustCompile(`^gdb$`), regexp.MustCompile(`\(gdb\) $`)},
-	{regexp.MustCompile(`^lldb$`), regexp.MustCompile(`\(lldb\) $`)},
-	{regexp.MustCompile(`^irb\d*(\.\d+)*$`), regexp.MustCompile(`irb.*> $`)},
-	{regexp.MustCompile(`^sqlite3$`), regexp.MustCompile(`sqlite> $`)},
-	{regexp.MustCompile(`^mysql$`), regexp.MustCompile(`mysql> $`)},
-	{regexp.MustCompile(`^psql$`), regexp.MustCompile(`[=#]> $`)},
-	{regexp.MustCompile(`^lua\d*(\.\d+)*$`), regexp.MustCompile(`> $`)},
-	{regexp.MustCompile(`^R$`), regexp.MustCompile(`> $`)},
+	{regexp.MustCompile(`^python\d*(\.\d+)*$`), `--prompt='(>>>|\.\.\.) $'`},
+	{regexp.MustCompile(`^node\d*$`), `--prompt='> $'`},
+	{regexp.MustCompile(`^gdb$`), `--prompt='\(gdb\) $'`},
+	{regexp.MustCompile(`^lldb$`), `--prompt='\(lldb\) $'`},
+	{regexp.MustCompile(`^irb\d*(\.\d+)*$`), `--prompt='irb.*> $' --env=TERM=dumb`},
+	{regexp.MustCompile(`^sqlite3$`), `--prompt='sqlite> $'`},
+	{regexp.MustCompile(`^mysql$`), `--prompt='mysql> $'`},
+	{regexp.MustCompile(`^psql$`), `--prompt='[=#]> $'`},
+	{regexp.MustCompile(`^lua\d*(\.\d+)*$`), `--prompt='> $'`},
+	{regexp.MustCompile(`^R$`), `--prompt='> $'`},
 }
 
 // DefaultPresetsFile returns the default path to the user presets file.
@@ -59,9 +62,8 @@ func DefaultPresetsFile() (string, error) {
 // entries in order: user presets first, then built-ins. The command is
 // matched against the basename.
 //
-// If presetsFile is non-empty, user presets are loaded from it. If
-// includeBuiltins is true, built-in presets are appended after user presets.
-func Lookup(command string, presetsFile string, includeBuiltins bool) (*regexp.Regexp, string, error) {
+// Returns the flags string and the matched command regex (for logging).
+func Lookup(command string, presetsFile string, includeBuiltins bool) (string, string, error) {
 	base := filepath.Base(command)
 
 	var entries []Entry
@@ -70,9 +72,8 @@ func Lookup(command string, presetsFile string, includeBuiltins bool) (*regexp.R
 	if presetsFile != "" {
 		userEntries, err := LoadFile(presetsFile)
 		if err != nil {
-			// File not existing is fine — it's optional.
 			if !os.IsNotExist(err) {
-				return nil, "", fmt.Errorf("load presets file: %w", err)
+				return "", "", fmt.Errorf("load presets file: %w", err)
 			}
 		}
 		entries = append(entries, userEntries...)
@@ -86,14 +87,14 @@ func Lookup(command string, presetsFile string, includeBuiltins bool) (*regexp.R
 	// First match wins.
 	for _, e := range entries {
 		if e.CommandRegex.MatchString(base) {
-			return e.PromptRegex, e.CommandRegex.String(), nil
+			return e.Flags, e.CommandRegex.String(), nil
 		}
 	}
-	return nil, "", nil
+	return "", "", nil
 }
 
 // LoadFile parses a presets file. Each non-empty, non-comment line is a
-// tab-separated pair: command_regex<TAB>prompt_regex.
+// tab-separated pair: command_regex<TAB>flags.
 func LoadFile(path string) ([]Entry, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -113,7 +114,7 @@ func LoadFile(path string) ([]Entry, error) {
 
 		parts := strings.SplitN(line, "\t", 2)
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("%s:%d: expected tab-separated command_regex and prompt_regex",
+			return nil, fmt.Errorf("%s:%d: expected tab-separated command_regex and flags",
 				path, lineNum)
 		}
 
@@ -122,16 +123,85 @@ func LoadFile(path string) ([]Entry, error) {
 			return nil, fmt.Errorf("%s:%d: invalid command regex: %w",
 				path, lineNum, err)
 		}
-		promptRe, err := regexp.Compile(parts[1])
-		if err != nil {
-			return nil, fmt.Errorf("%s:%d: invalid prompt regex: %w",
-				path, lineNum, err)
-		}
 
 		entries = append(entries, Entry{
 			CommandRegex: cmdRe,
-			PromptRegex:  promptRe,
+			Flags:        parts[1],
 		})
 	}
 	return entries, scanner.Err()
+}
+
+// ParseFlags parses a preset flags string into key-value pairs.
+// Supports --key=value and --key (boolean). Returns a map of flag names
+// to values. Repeatable flags (like --env) accumulate as comma-joined values,
+// but callers should use ParseEnvFlags for --env specifically.
+func ParseFlags(flags string) map[string]string {
+	result := make(map[string]string)
+	tokens := tokenize(flags)
+
+	for _, tok := range tokens {
+		if !strings.HasPrefix(tok, "--") {
+			continue
+		}
+		tok = tok[2:] // strip --
+
+		if idx := strings.Index(tok, "="); idx >= 0 {
+			key := tok[:idx]
+			val := tok[idx+1:]
+			if key == "env" {
+				// Accumulate env vars.
+				if prev, ok := result["env"]; ok {
+					result["env"] = prev + "\x00" + val
+				} else {
+					result["env"] = val
+				}
+			} else {
+				result[key] = val
+			}
+		} else {
+			// Boolean flag.
+			result[tok] = "true"
+		}
+	}
+	return result
+}
+
+// ParseEnvFlags extracts --env values from a parsed flags map.
+func ParseEnvFlags(parsed map[string]string) []string {
+	envStr, ok := parsed["env"]
+	if !ok {
+		return nil
+	}
+	return strings.Split(envStr, "\x00")
+}
+
+// tokenize splits a flags string into tokens, respecting single and double
+// quotes. This handles values with spaces like --prompt=(>>>|\.\.\.) $.
+func tokenize(s string) []string {
+	var tokens []string
+	var current strings.Builder
+	inSingle := false
+	inDouble := false
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '\'' && !inDouble:
+			inSingle = !inSingle
+		case c == '"' && !inSingle:
+			inDouble = !inDouble
+		case (c == ' ' || c == '\t') && !inSingle && !inDouble:
+			if current.Len() > 0 {
+				tokens = append(tokens, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteByte(c)
+		}
+	}
+	if current.Len() > 0 {
+		tokens = append(tokens, current.String())
+	}
+	return tokens
 }

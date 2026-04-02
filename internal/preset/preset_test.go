@@ -3,6 +3,7 @@ package preset
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 )
 
@@ -33,27 +34,27 @@ func TestLookupBuiltins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.command, func(t *testing.T) {
-			re, _, err := Lookup(tt.command, "", true)
+			flags, _, err := Lookup(tt.command, "", true)
 			if err != nil {
 				t.Fatalf("Lookup error: %v", err)
 			}
-			if tt.wantMatch && re == nil {
-				t.Error("expected match, got nil")
+			if tt.wantMatch && flags == "" {
+				t.Error("expected match, got empty")
 			}
-			if !tt.wantMatch && re != nil {
-				t.Errorf("expected no match, got %v", re)
+			if !tt.wantMatch && flags != "" {
+				t.Errorf("expected no match, got %q", flags)
 			}
 		})
 	}
 }
 
 func TestLookupNoBuiltins(t *testing.T) {
-	re, _, err := Lookup("python3", "", false)
+	flags, _, err := Lookup("python3", "", false)
 	if err != nil {
 		t.Fatalf("Lookup error: %v", err)
 	}
-	if re != nil {
-		t.Error("expected no match with builtins disabled")
+	if flags != "" {
+		t.Errorf("expected no match with builtins disabled, got %q", flags)
 	}
 }
 
@@ -61,47 +62,47 @@ func TestLookupUserPresets(t *testing.T) {
 	dir := t.TempDir()
 	presetsFile := filepath.Join(dir, "presets")
 
-	// Write a user presets file.
 	content := "# My presets\n" +
-		"^myrepl$\tmyrepl> $\n" +
-		"^python\\d*$\tCUSTOM>>> $\n" // override built-in python
+		"^myrepl$\t--prompt='myrepl> $'\n" +
+		"^python\\d*$\t--prompt='CUSTOM>>> $' --env=PYTHONDONTWRITEBYTECODE=1\n"
 	if err := os.WriteFile(presetsFile, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	// User preset should match.
-	re, _, err := Lookup("myrepl", presetsFile, true)
+	flags, _, err := Lookup("myrepl", presetsFile, true)
 	if err != nil {
 		t.Fatalf("Lookup error: %v", err)
 	}
-	if re == nil {
+	if flags == "" {
 		t.Fatal("expected match for myrepl")
 	}
-	if !re.MatchString("myrepl> ") {
-		t.Errorf("expected regex to match 'myrepl> ', got %v", re)
+	parsed := ParseFlags(flags)
+	if parsed["prompt"] != "myrepl> $" {
+		t.Errorf(`expected prompt "myrepl> $", got %q`, parsed["prompt"])
 	}
 
 	// User preset should override built-in (first match wins).
-	re, _, err = Lookup("python3", presetsFile, true)
+	flags, _, err = Lookup("python3", presetsFile, true)
 	if err != nil {
 		t.Fatalf("Lookup error: %v", err)
 	}
-	if re == nil {
-		t.Fatal("expected match for python3")
+	parsed = ParseFlags(flags)
+	if parsed["prompt"] != "CUSTOM>>> $" {
+		t.Errorf(`expected user prompt override, got %q`, parsed["prompt"])
 	}
-	if !re.MatchString("CUSTOM>>> ") {
-		t.Errorf("expected user preset to override builtin, got %v", re)
+	envs := ParseEnvFlags(parsed)
+	if len(envs) != 1 || envs[0] != "PYTHONDONTWRITEBYTECODE=1" {
+		t.Errorf("expected env var, got %v", envs)
 	}
 }
 
 func TestLookupMissingFile(t *testing.T) {
-	// Missing file should not error — it's optional.
-	re, _, err := Lookup("python3", "/nonexistent/presets", true)
+	flags, _, err := Lookup("python3", "/nonexistent/presets", true)
 	if err != nil {
 		t.Fatalf("expected no error for missing file, got: %v", err)
 	}
-	// Should still match via builtins.
-	if re == nil {
+	if flags == "" {
 		t.Error("expected builtin match despite missing file")
 	}
 }
@@ -119,18 +120,10 @@ func TestLoadFileErrors(t *testing.T) {
 
 	// Invalid command regex.
 	bad2 := filepath.Join(dir, "bad2")
-	os.WriteFile(bad2, []byte("[invalid\tprompt$\n"), 0o644)
+	os.WriteFile(bad2, []byte("[invalid\t--prompt=x\n"), 0o644)
 	_, err = LoadFile(bad2)
 	if err == nil {
 		t.Error("expected error for invalid command regex")
-	}
-
-	// Invalid prompt regex.
-	bad3 := filepath.Join(dir, "bad3")
-	os.WriteFile(bad3, []byte("valid$\t[invalid\n"), 0o644)
-	_, err = LoadFile(bad3)
-	if err == nil {
-		t.Error("expected error for invalid prompt regex")
 	}
 }
 
@@ -138,7 +131,7 @@ func TestLoadFileCommentsAndBlanks(t *testing.T) {
 	dir := t.TempDir()
 	f := filepath.Join(dir, "presets")
 
-	content := "# comment\n\n  # indented comment\n^test$\ttest> $\n\n"
+	content := "# comment\n\n  # indented comment\n^test$\t--prompt=test> $\n\n"
 	os.WriteFile(f, []byte(content), 0o644)
 
 	entries, err := LoadFile(f)
@@ -148,8 +141,73 @@ func TestLoadFileCommentsAndBlanks(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(entries))
 	}
-	if !entries[0].CommandRegex.MatchString("test") {
-		t.Error("expected command regex to match 'test'")
+	if entries[0].Flags != "--prompt=test> $" {
+		t.Errorf("expected '--prompt=test> $', got %q", entries[0].Flags)
+	}
+}
+
+func TestParseFlags(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		want   map[string]string
+	}{
+		{
+			name:  "prompt only",
+			input: `--prompt='(>>>|\.\.\.) $'`,
+			want:  map[string]string{"prompt": `(>>>|\.\.\.) $`},
+		},
+		{
+			name:  "multiple flags",
+			input: `--prompt='> $' --idle-timeout=100ms`,
+			want:  map[string]string{"prompt": "> $", "idle-timeout": "100ms"},
+		},
+		{
+			name:  "boolean flag",
+			input: "--no-pty --suspend",
+			want:  map[string]string{"no-pty": "true", "suspend": "true"},
+		},
+		{
+			name:  "env vars",
+			input: "--env=TERM=dumb --env=FOO=bar",
+			want:  map[string]string{"env": "TERM=dumb\x00FOO=bar"},
+		},
+		{
+			name:  "echo false",
+			input: "--echo=false",
+			want:  map[string]string{"echo": "false"},
+		},
+		{
+			name:  "mixed",
+			input: `--prompt='\(gdb\) $' --env=TERM=dumb --suspend`,
+			want: map[string]string{
+				"prompt":  `\(gdb\) $`,
+				"env":     "TERM=dumb",
+				"suspend": "true",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ParseFlags(tt.input)
+			for k, v := range tt.want {
+				if got[k] != v {
+					t.Errorf("key %q: got %q, want %q", k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
+func TestParseEnvFlags(t *testing.T) {
+	parsed := ParseFlags("--env=TERM=dumb --env=FOO=bar")
+	envs := ParseEnvFlags(parsed)
+	if len(envs) != 2 {
+		t.Fatalf("expected 2 env vars, got %d", len(envs))
+	}
+	if envs[0] != "TERM=dumb" || envs[1] != "FOO=bar" {
+		t.Errorf("unexpected env vars: %v", envs)
 	}
 }
 
@@ -163,22 +221,53 @@ func TestBuiltinPromptRegexes(t *testing.T) {
 		{"node", "> "},
 		{"gdb", "(gdb) "},
 		{"lldb", "(lldb) "},
-		{"irb", "irb(main):001:0> "},
 		{"sqlite3", "sqlite> "},
 		{"mysql", "mysql> "},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.command+"/"+tt.prompt, func(t *testing.T) {
-			re, _, err := Lookup(tt.command, "", true)
+			flags, _, err := Lookup(tt.command, "", true)
 			if err != nil {
 				t.Fatalf("Lookup error: %v", err)
 			}
-			if re == nil {
-				t.Fatalf("no preset for %q", tt.command)
+			parsed := ParseFlags(flags)
+			pattern, ok := parsed["prompt"]
+			if !ok {
+				t.Fatalf("no prompt in preset for %q", tt.command)
+			}
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				t.Fatalf("invalid prompt regex %q: %v", pattern, err)
 			}
 			if !re.MatchString(tt.prompt) {
 				t.Errorf("regex %v did not match %q", re, tt.prompt)
+			}
+		})
+	}
+}
+
+func TestTokenize(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{"--prompt=>>> $", []string{"--prompt=>>>", "$"}},
+		{"--prompt='>>> $'", []string{"--prompt=>>> $"}},
+		{`--prompt=">>> $"`, []string{"--prompt=>>> $"}},
+		{"--env=TERM=dumb --suspend", []string{"--env=TERM=dumb", "--suspend"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := tokenize(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("token %d: got %q, want %q", i, got[i], tt.want[i])
+				}
 			}
 		})
 	}

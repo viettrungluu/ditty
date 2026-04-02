@@ -81,10 +81,17 @@ All items below are implemented, tested, committed, and pushed.
 - [x] `--suspend` flag (SIGSTOP/SIGCONT between commands)
 - [x] `--multi` flag on continue (each arg as a separate line)
 - [x] `ditty attach` (interactive line-by-line session)
-- [x] Built-in prompt presets (python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R)
-- [x] `--no-preset` flag to disable auto-detection
+- [x] Built-in presets (python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R)
+- [x] Presets redesigned: flag-based format (presets can set any start flag, not just prompt)
+- [x] `--no-builtin-presets` flag to disable built-in presets
+- [x] `--env` flag (repeatable) to set environment variables for the child
 - [x] ANSI escape stripping in regex prompt detection
+- [x] Terminal state reset after streaming (fixes irb cruft)
+- [x] `--no-terminal-reset` flag
+- [x] Program flag passthrough fix (SetInterspersed)
 - [x] GitHub Actions CI (Ubuntu + macOS)
+- [x] Release workflow (cross-compile, .tar.gz, checksums)
+- [x] Homebrew tap (viettrungluu/tap/ditty)
 
 ## What's Left (future work)
 

@@ -48,6 +48,9 @@ type Config struct {
 	// and SIGCONT when a client connects. This prevents any background
 	// output but some programs handle suspend poorly.
 	Suspend bool
+	// Env holds additional environment variables (KEY=VALUE) to set for
+	// the child process.
+	Env []string
 }
 
 // Daemon manages a single REPL session.
@@ -139,6 +142,11 @@ func Run(cfg Config) error {
 func (d *Daemon) startREPL() error {
 	cmd := exec.Command(d.cfg.Command, d.cfg.Args...)
 	cmd.Env = os.Environ()
+	// Apply additional environment variables (--env flags). These are
+	// appended after os.Environ() so they override existing values.
+	for _, e := range d.cfg.Env {
+		cmd.Env = append(cmd.Env, e)
+	}
 
 	if d.cfg.NoPty {
 		return d.startREPLPipes(cmd)

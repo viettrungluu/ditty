@@ -148,6 +148,7 @@ Each step below is one self-contained commit. Every commit should compile (`go b
 - **`--idle-timeout` flag**: Already designed for, just needs CLI plumbing
 - **Ring buffer size config**: `--buffer-size` flag on `ditty start`
 - **Session metadata on disk**: Store PID, command, start time in session dir for richer `ditty list` output
+- **`--multi` flag on continue**: Each positional arg is sent as a separate line, waiting for the prompt between each. Useful for multi-line sequences (imports, function defs, etc.)
 - **Reconnect / attach**: `ditty attach` to get a live interactive session with the REPL
 - **Configurable TERM**: Set the TERM environment variable for the pty (default `xterm-256color` or similar)
 - **Scrollback / history**: `ditty history --name=NAME` to see past interactions

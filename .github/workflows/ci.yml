@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go: ["1.23"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Unit tests
+        run: go test ./internal/... -count=1 -race
+
+      - name: Integration tests
+        run: go test ./integration/ -count=1 -timeout=120s
+
+      - name: Smoke tests
+        run: |
+          go build -o ./ditty .
+          # gtimeout is coreutils timeout; on Linux it's just "timeout"
+          if ! command -v gtimeout &>/dev/null; then
+            sudo ln -sf "$(command -v timeout)" /usr/local/bin/gtimeout
+          fi
+          scripts/smoke-test.sh ./ditty

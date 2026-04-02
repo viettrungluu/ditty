@@ -24,6 +24,8 @@ and lets you send input and receive output through simple CLI commands.`,
 
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,
 		"enable verbose/debug logging")
+	cmd.PersistentFlags().BoolVar(&noTerminalReset, "no-terminal-reset", false,
+		"don't reset terminal state after streaming output")
 
 	cmd.AddCommand(newDaemonCmd())
 	cmd.AddCommand(newStartCmd())

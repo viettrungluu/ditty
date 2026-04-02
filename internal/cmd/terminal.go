@@ -2,6 +2,10 @@ package cmd
 
 import "os"
 
+// noTerminalReset disables the terminal reset after streaming output.
+// Set via --no-terminal-reset on the root command.
+var noTerminalReset bool
+
 // resetTerminal writes escape sequences to undo common terminal state
 // changes that REPLs make during startup or operation. This prevents
 // mode changes from persisting after ditty returns to the shell.
@@ -12,6 +16,10 @@ import "os"
 //   - Cursor visibility changes (\e[?25l)
 //   - Text attribute changes (colors, bold, etc.)
 func resetTerminal() {
+	if noTerminalReset {
+		return
+	}
+
 	// Only reset if stdout is a terminal.
 	if !isTerminal(os.Stdout) {
 		return

@@ -44,3 +44,70 @@ jobs:
             dist/*
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAG="${GITHUB_REF_NAME}"
+
+          # Compute SHA256 for each platform tarball.
+          SHA_DARWIN_ARM64=$(sha256sum dist/ditty-darwin-arm64.tar.gz | awk '{print $1}')
+          SHA_DARWIN_AMD64=$(sha256sum dist/ditty-darwin-amd64.tar.gz | awk '{print $1}')
+          SHA_LINUX_ARM64=$(sha256sum dist/ditty-linux-arm64.tar.gz | awk '{print $1}')
+          SHA_LINUX_AMD64=$(sha256sum dist/ditty-linux-amd64.tar.gz | awk '{print $1}')
+
+          BASE_URL="https://github.com/viettrungluu/ditty/releases/download/${TAG}"
+
+          # Generate the formula.
+          cat > ditty.rb <<FORMULA
+          class Ditty < Formula
+            desc "Convert line-interactive programs (REPLs, debuggers) into CLI programs"
+            homepage "https://github.com/viettrungluu/ditty"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "${BASE_URL}/ditty-darwin-arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              end
+
+              on_intel do
+                url "${BASE_URL}/ditty-darwin-amd64.tar.gz"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "${BASE_URL}/ditty-linux-arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              end
+
+              on_intel do
+                url "${BASE_URL}/ditty-linux-amd64.tar.gz"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "ditty"
+            end
+
+            test do
+              assert_match "ditty", shell_output("#{bin}/ditty --help")
+            end
+          end
+          FORMULA
+
+          # Remove leading whitespace (heredoc was indented for readability).
+          sed -i 's/^          //' ditty.rb
+
+          # Push to the homebrew-tap repo.
+          gh api repos/viettrungluu/homebrew-tap/contents/Formula/ditty.rb \
+            --method PUT \
+            --field message="Update ditty to ${TAG}" \
+            --field content="$(base64 -w0 ditty.rb)" \
+            --field sha="$(gh api repos/viettrungluu/homebrew-tap/contents/Formula/ditty.rb --jq '.sha')"

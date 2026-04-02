@@ -22,6 +22,9 @@ import (
 // before declaring that a prompt has been detected.
 const DefaultIdleTimeout = 200 * time.Millisecond
 
+// ansiEscape matches ANSI escape sequences (CSI sequences and OSC sequences).
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b\[[0-9;?]*[hlm]`)
+
 // regexDebounce is a short debounce for regex-based detection, to avoid
 // running the regex on every single byte of output.
 const regexDebounce = 10 * time.Millisecond
@@ -102,8 +105,11 @@ func (d *Detector) check() {
 	}
 
 	if d.cfg.PromptRegex != nil {
-		// Regex mode: check if the accumulated output matches.
-		if d.cfg.PromptRegex.Match(d.buf) {
+		// Regex mode: strip ANSI escape sequences before matching,
+		// since some REPLs (e.g., Python 3.13+) wrap the prompt in
+		// color codes and bracketed paste mode sequences.
+		clean := stripANSI(d.buf)
+		if d.cfg.PromptRegex.Match(clean) {
 			d.stopped = true
 			d.onPrompt()
 		}
@@ -145,4 +151,9 @@ func (d *Detector) Stop() {
 		d.timer.Stop()
 		d.timer = nil
 	}
+}
+
+// stripANSI removes ANSI escape sequences from b.
+func stripANSI(b []byte) []byte {
+	return ansiEscape.ReplaceAll(b, nil)
 }

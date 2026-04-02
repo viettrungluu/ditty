@@ -264,3 +264,25 @@ func TestRegexResetClearsBuf(t *testing.T) {
 	}
 	mu.Unlock()
 }
+
+func TestRegexWithANSIEscapes(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	detected := false
+	d := NewDetector(Config{
+		PromptRegex: regexp.MustCompile(`>>> $`),
+	}, func() {
+		detected = true
+		wg.Done()
+	})
+	defer d.Stop()
+
+	// Python 3.13+ wraps the prompt in ANSI escapes (color, bracketed paste).
+	d.Feed([]byte("\x1b[?2004h\x1b[?1h=\x1b[?25l\x1b[1;35m>>> \x1b[0m\x1b[4D\x1b[?12l\x1b[?25h\x1b[4C"))
+	wg.Wait()
+
+	if !detected {
+		t.Error("expected regex detection through ANSI escapes")
+	}
+}

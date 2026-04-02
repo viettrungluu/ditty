@@ -20,25 +20,155 @@ cd ditty
 go build -o ditty .
 ```
 
-## Usage
+## Quick start
 
-```
-# Start a REPL session
+```bash
+# Start a Python session
 ditty start --name=py python3
 
-# Send commands and get output
-ditty continue --name=py 'print("hello")'
+# Send commands
+ditty continue --name=py 'print("hello, world")'
+ditty continue --name=py 'x = 42'
+ditty continue --name=py 'print(x * 2)'
 
 # List active sessions
 ditty list
 
-# End the session
+# Stop the session
 ditty stop --name=py
+```
+
+## Commands
+
+### `ditty start [flags] PROGRAM [ARGS...]`
+
+Launches a program in the background and streams its initial output until the first prompt appears.
+
+```bash
+ditty start --name=py python3
+ditty start --name=debug gdb ./myprogram
+ditty start myrepl                          # auto-generates a session name
+```
+
+If `--name` is omitted, a random name is generated and printed.
+
+### `ditty continue [flags] INPUT [INPUT...]`
+
+Sends input to a running session and streams output until the next prompt.
+
+```bash
+ditty continue --name=py 'print(42)'
+ditty continue 'print(42)'                  # uses last-used session
+```
+
+With `--multi`, each argument is sent as a separate line, waiting for the prompt between each:
+
+```bash
+ditty continue --multi 'import os' 'import sys' 'print(os.getcwd())'
+```
+
+### `ditty attach [flags]`
+
+Connects to a session interactively. Input is read line-by-line from stdin. Detach with Ctrl-D.
+
+```bash
+ditty attach --name=py
+```
+
+### `ditty stop [flags]` / `ditty kill [flags]`
+
+`stop` sends SIGTERM and waits for the program to exit (escalates to SIGKILL after 5 seconds). `kill` sends SIGTERM immediately with a shorter escalation.
+
+### `ditty list` / `ditty ls`
+
+Lists active sessions with their status, command, PID, and uptime.
+
+## Prompt detection
+
+ditty needs to know when the program has finished producing output and is waiting for input (i.e., showing a prompt). It supports three strategies, in order of precedence:
+
+### 1. Explicit regex (`--prompt`)
+
+You provide a regex that matches the prompt:
+
+```bash
+ditty start --name=py --prompt='>>> $' python3
+ditty start --name=db --prompt='\(gdb\) $' gdb ./a.out
+```
+
+This is the most precise — ditty returns as soon as the regex matches, with no delay.
+
+### 2. Built-in presets (automatic)
+
+For common programs, ditty auto-detects a prompt regex from the command name. Currently supported: python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R. Version suffixes are handled (e.g., `python3.12` matches `python`).
+
+Presets are used automatically unless `--prompt` is set or `--no-preset` is passed.
+
+```bash
+ditty start python3                  # auto-detects ">>> " prompt
+ditty start --no-preset python3      # force idle timeout instead
+```
+
+### 3. Idle timeout (fallback)
+
+If no regex is available, ditty waits for output to go silent for 200ms and checks if the last byte is not a newline (since prompts are typically partial lines like `>>> `). This works for most programs with no configuration, at the cost of a small delay per interaction.
+
+The timeout is configurable:
+
+```bash
+ditty start --idle-timeout=100ms python3
+ditty start --idle-timeout=500ms slow-repl
+```
+
+## Other options
+
+### `--echo` / `--echo=false`
+
+By default, the pty echoes input back in the output (like a real terminal). Use `--echo=false` to strip the echoed input, which is cleaner for scripting:
+
+```bash
+ditty start --echo=false python3
+ditty continue 'print(42)'
+# Output: just "42" and the prompt, no "print(42)" echo
+```
+
+### `--no-pty`
+
+Uses pipes instead of a pseudoterminal. Useful for programs that don't need terminal features:
+
+```bash
+ditty start --no-pty cat
+```
+
+Note: many programs (Python, gdb, etc.) change behavior without a pty — they may suppress prompts or disable line editing. Use this only for programs that work well with pipes.
+
+### `--suspend`
+
+Sends SIGSTOP to the child process between commands and SIGCONT when a client connects. This prevents any background output but some programs handle suspend poorly:
+
+```bash
+ditty start --suspend python3
+```
+
+### `--buffer-size`
+
+Configures the ring buffer size for background output (output produced while no client is connected). Default is 1MB:
+
+```bash
+ditty start --buffer-size=4194304 python3   # 4MB buffer
+```
+
+### `-v` / `--verbose`
+
+Enables debug logging on stderr, including daemon internals (output flow, client connections, protocol messages):
+
+```bash
+ditty -v start --name=debug python3
 ```
 
 ## Testing
 
-Run the smoke tests (requires `python3` and `gtimeout`):
+Run the smoke tests (requires `python3`):
 
 ```
 scripts/smoke-test.sh ./ditty
@@ -58,4 +188,8 @@ go test ./...
 
 ## How it works
 
-Each `ditty start` spawns a per-session daemon that allocates a pseudoterminal (so the REPL behaves as if attached to a real terminal), holds the REPL process, and listens on a Unix domain socket. `ditty continue` is a thin client that connects to the socket, sends input, streams output until the next prompt, and disconnects.
+Each `ditty start` spawns a per-session daemon that allocates a pseudoterminal (so the REPL behaves as if attached to a real terminal), holds the REPL process, and listens on a Unix domain socket. `ditty continue` is a thin client that connects to the socket, sends input, streams output until the next prompt, and disconnects. See [claude/design-and-implementation.md](claude/design-and-implementation.md) for details.
+
+## License
+
+MIT

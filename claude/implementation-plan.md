@@ -18,22 +18,29 @@ ditty/
       stop.go                     # ditty stop
       kill.go                     # ditty kill
       list.go                     # ditty list / ditty ls
+      attach.go                   # ditty attach
       daemon.go                   # hidden _daemon subcommand
     daemon/                       # daemon process logic
       daemon.go                   # main loop: pty, REPL lifecycle, echo stripping
       server.go                   # Unix socket listener, client handler
     dlog/                         # verbose/debug logging
       dlog.go
+    preset/                       # built-in prompt presets
+      preset.go
     protocol/                     # client-daemon wire protocol
       protocol.go                 # message types, framing, read/write helpers
     prompt/                       # prompt detection
-      detect.go                   # idle timeout + regex detector
+      detect.go                   # idle timeout + regex detector (ANSI-aware)
     ringbuf/                      # bounded ring buffer
       ringbuf.go
     session/                      # session directory management
       session.go                  # paths, naming, discovery, liveness, metadata
   integration/
     integration_test.go           # end-to-end tests
+  scripts/
+    smoke-test.sh                 # 29 smoke tests
+  .github/workflows/
+    ci.yml                        # CI on Ubuntu + macOS
 ```
 
 ## Dependencies
@@ -41,11 +48,11 @@ ditty/
 - `github.com/creack/pty/v2` — pty allocation
 - `github.com/spf13/cobra` — CLI framework
 
-## What's Done (MVP + enhancements)
+## What's Done
 
 All items below are implemented, tested, committed, and pushed.
 
-### MVP (Steps 1-10)
+### MVP
 - [x] Project scaffolding (go module, cobra root command)
 - [x] Session management (paths, naming, discovery, liveness checks)
 - [x] Ring buffer for background output buffering
@@ -57,28 +64,29 @@ All items below are implemented, tested, committed, and pushed.
 - [x] Signal handling (SIGINT → \x03 forwarding)
 - [x] Integration tests (python3 end-to-end)
 
-### Post-MVP enhancements (done)
+### Post-MVP enhancements
 - [x] `--verbose` / `-v` flag for daemon debug logging
-- [x] Graceful stop sends SIGTERM first (not pty close), with SIGKILL escalation
+- [x] Graceful stop: SIGTERM first, SIGKILL escalation after 5s
 - [x] Install/build instructions in README
 - [x] Socket path length fix (chdir + relative paths to avoid 108-byte limit)
 - [x] Clean error messages for missing/stale sessions
 - [x] `--idle-timeout` flag on `ditty start`
-- [x] `--echo` flag (default: off) — strips echoed input from output
+- [x] `--echo` flag (default: on) with output-side echo stripping
 - [x] `--buffer-size` flag for ring buffer configuration
 - [x] Session metadata on disk (PID, command, start time; shown in `ditty list`)
 - [x] `--prompt=REGEX` for precise, zero-latency prompt detection
-- [x] `--echo` default changed to true (echo on)
-- [x] Smoke test script (`scripts/smoke-test.sh`)
+- [x] Smoke test script (`scripts/smoke-test.sh`, 29 tests)
 - [x] TERM inherited from environment (configurable via `TERM=... ditty start`)
+- [x] `--no-pty` flag for pipe mode
+- [x] `--suspend` flag (SIGSTOP/SIGCONT between commands)
+- [x] `--multi` flag on continue (each arg as a separate line)
+- [x] `ditty attach` (interactive line-by-line session)
+- [x] Built-in prompt presets (python, node, gdb, lldb, irb, sqlite3, mysql, psql, lua, R)
+- [x] `--no-preset` flag to disable auto-detection
+- [x] ANSI escape stripping in regex prompt detection
+- [x] GitHub Actions CI (Ubuntu + macOS)
 
 ## What's Left (future work)
 
-### Features
-- **Built-in presets**: Auto-detect prompt patterns for python, node, gdb, lldb, etc.
-- **`--multi` flag on continue**: Each positional arg is sent as a separate line, waiting for the prompt between each. Useful for multi-line sequences (imports, function defs, etc.)
-- **`--suspend` flag**: SIGSTOP/SIGCONT between commands for programs that tolerate it
-- **`--no-pty` flag**: Pipe mode for programs that don't need a pty
-- **Reconnect / attach**: `ditty attach` to get a live interactive session with the REPL
-- **Scrollback / history**: `ditty history --name=NAME` to see past interactions
-- **Verbose daemon log file**: Write daemon logs to a file in the session dir so they're available even when not started with `-v`
+- **`ditty history`**: scrollback of past interactions
+- **Verbose daemon log file**: persist logs to a file even without `-v`

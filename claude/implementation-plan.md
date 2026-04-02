@@ -68,6 +68,9 @@ All items below are implemented, tested, committed, and pushed.
 - [x] `--buffer-size` flag for ring buffer configuration
 - [x] Session metadata on disk (PID, command, start time; shown in `ditty list`)
 - [x] `--prompt=REGEX` for precise, zero-latency prompt detection
+- [x] `--echo` default changed to true (echo on)
+- [x] Smoke test script (`scripts/smoke-test.sh`)
+- [x] TERM inherited from environment (configurable via `TERM=... ditty start`)
 
 ## What's Left (future work)
 
@@ -77,6 +80,5 @@ All items below are implemented, tested, committed, and pushed.
 - **`--suspend` flag**: SIGSTOP/SIGCONT between commands for programs that tolerate it
 - **`--no-pty` flag**: Pipe mode for programs that don't need a pty
 - **Reconnect / attach**: `ditty attach` to get a live interactive session with the REPL
-- **Configurable TERM**: Set the TERM environment variable for the pty (currently hardcoded to `xterm-256color`)
 - **Scrollback / history**: `ditty history --name=NAME` to see past interactions
 - **Verbose daemon log file**: Write daemon logs to a file in the session dir so they're available even when not started with `-v`

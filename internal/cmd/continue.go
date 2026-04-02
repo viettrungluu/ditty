@@ -26,6 +26,10 @@ func newContinueCmd() *cobra.Command {
 		Long: `Sends the given input string to the named session's REPL and
 streams output until the next prompt appears.
 
+The detected prompt from the previous interaction is printed before
+the output, so the display looks like a normal terminal session.
+Use --no-show-prompt to suppress this.
+
 With --multi, each argument is sent as a separate line, waiting for
 the prompt between each one. Without --multi, all arguments are
 joined with a space and sent as a single line.`,
@@ -44,13 +48,19 @@ joined with a space and sent as a single line.`,
 	cmd.Flags().BoolVar(&multi, "multi", false,
 		"send each argument as a separate line, waiting for the prompt between each")
 	cmd.Flags().BoolVar(&noShowPrompt, "no-show-prompt", false,
-		"don't print the prompt after output")
+		"don't print the prompt before output")
 
 	return cmd
 }
 
 // runContinueSingle sends a single input and streams output.
 func runContinueSingle(name string, noShowPrompt bool, input string) error {
+	var err error
+	name, err = resolveName(name)
+	if err != nil {
+		return err
+	}
+
 	conn, err := setupContinue(name)
 	if err != nil {
 		return err
@@ -58,12 +68,25 @@ func runContinueSingle(name string, noShowPrompt bool, input string) error {
 	defer conn.Close()
 	defer resetTerminal()
 
-	return sendAndWait(conn, !noShowPrompt, input)
+	// Print the saved prompt from the previous interaction.
+	if !noShowPrompt {
+		if p := session.LoadPrompt(name); p != "" {
+			os.Stdout.WriteString(p)
+		}
+	}
+
+	return sendAndWait(conn, name, input)
 }
 
 // runContinueMulti sends each arg as a separate line, waiting for the
 // prompt between each.
 func runContinueMulti(name string, noShowPrompt bool, inputs []string) error {
+	var err error
+	name, err = resolveName(name)
+	if err != nil {
+		return err
+	}
+
 	conn, err := setupContinue(name)
 	if err != nil {
 		return err
@@ -71,25 +94,23 @@ func runContinueMulti(name string, noShowPrompt bool, inputs []string) error {
 	defer conn.Close()
 	defer resetTerminal()
 
-	for i, input := range inputs {
-		// Only show the prompt after the last input.
-		show := !noShowPrompt && i == len(inputs)-1
-		if err := sendAndWait(conn, show, input); err != nil {
+	for _, input := range inputs {
+		// Print the saved prompt before each input line.
+		if !noShowPrompt {
+			if p := session.LoadPrompt(name); p != "" {
+				os.Stdout.WriteString(p)
+			}
+		}
+		if err := sendAndWait(conn, name, input); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// setupContinue resolves the session, connects, and sets up SIGINT
-// forwarding. The caller must close the returned connection.
+// setupContinue connects to the session and sets up SIGINT forwarding.
+// The caller must close the returned connection.
 func setupContinue(name string) (net.Conn, error) {
-	var err error
-	name, err = resolveName(name)
-	if err != nil {
-		return nil, err
-	}
-
 	conn, err := dialSession(name)
 	if err != nil {
 		return nil, err
@@ -107,9 +128,9 @@ func setupContinue(name string) (net.Conn, error) {
 }
 
 // sendAndWait sends one line of input and streams output until the next
-// prompt or exit. If showPrompt is true, a newline is printed after the
-// prompt is detected (so the prompt text is visible on its own line).
-func sendAndWait(conn net.Conn, showPrompt bool, input string) error {
+// prompt or exit. The trailing partial line (the prompt) is held back
+// and saved to disk for the next continue.
+func sendAndWait(conn net.Conn, name string, input string) error {
 	if err := protocol.WriteMessage(conn, protocol.Message{
 		Type:    protocol.MsgInput,
 		Payload: []byte(input),
@@ -117,21 +138,27 @@ func sendAndWait(conn net.Conn, showPrompt bool, input string) error {
 		return fmt.Errorf("send input: %w", err)
 	}
 
+	var buf outputBuffer
+
 	for {
 		msg, err := protocol.ReadMessage(conn)
 		if err != nil {
+			buf.Flush()
 			return fmt.Errorf("read from daemon: %w", err)
 		}
 
 		switch msg.Type {
 		case protocol.MsgOutput, protocol.MsgBufferedOutput:
-			os.Stdout.Write(msg.Payload)
+			buf.Write(msg.Payload)
 		case protocol.MsgPromptDetected:
-			if showPrompt {
-				os.Stdout.WriteString("\n")
+			// Save the trailing partial line (the prompt) for the
+			// next continue to print.
+			if p := buf.Partial(); p != "" {
+				session.SavePrompt(name, p)
 			}
 			return nil
 		case protocol.MsgExited:
+			buf.Flush()
 			code := 0
 			if len(msg.Payload) > 0 {
 				code = int(msg.Payload[0])
@@ -141,6 +168,7 @@ func sendAndWait(conn net.Conn, showPrompt bool, input string) error {
 			}
 			return nil
 		case protocol.MsgError:
+			buf.Flush()
 			return fmt.Errorf("daemon error: %s", msg.Payload)
 		}
 	}

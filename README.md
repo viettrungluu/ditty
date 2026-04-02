@@ -78,7 +78,15 @@ ditty continue --name=py 'print(42)'
 ditty continue 'print(42)'                  # uses last-used session
 ```
 
-The prompt is printed after the output by default. Use `--no-show-prompt` to suppress it:
+The detected prompt from the previous interaction is printed before the output, so it looks like a normal terminal session:
+
+```
+$ ditty continue --name=py 'print(42)'
+>>> print(42)
+42
+```
+
+Use `--no-show-prompt` to suppress the prompt:
 
 ```bash
 ditty continue --no-show-prompt --name=py 'print(42)'

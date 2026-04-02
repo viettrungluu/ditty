@@ -77,7 +77,7 @@ run_ditty() {
 echo "=== Basic start/continue/stop ==="
 
 out=$(run_ditty start --name=basic python3)
-assert_contains "start shows prompt" "$out" ">>>"
+assert_contains "start shows python banner" "$out" "Python"
 assert_contains "start shows session name" "$out" "basic"
 
 out=$(run_ditty continue --name=basic 'print(40 + 2)')
@@ -135,7 +135,7 @@ echo "=== Auto-generated name ==="
 
 out=$(run_ditty start python3)
 assert_contains "auto name shows command prefix" "$out" "python3-"
-assert_contains "auto name shows prompt" "$out" ">>>"
+assert_contains "auto name shows python banner" "$out" "Python"
 
 # Kill via last-used.
 run_ditty kill >/dev/null
@@ -289,7 +289,7 @@ if printf '%s' "$out" | grep -q $'\x1b\[?2004l'; then
 else
 	# Even if the reset sequence isn't in the captured output (it may go
 	# directly to the terminal), verify that start at least completed.
-	assert_contains "terminal reset: start completed" "$out" ">>>"
+	assert_contains "terminal reset: start completed" "$out" "Python"
 fi
 
 run_ditty kill --name=termreset >/dev/null

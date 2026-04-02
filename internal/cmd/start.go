@@ -232,7 +232,7 @@ func runStart(name string, idleTimeout time.Duration, noEcho bool, bufSize int, 
 	fmt.Fprintf(os.Stderr, "ditty: session %q started\n", name)
 
 	// Stream initial output until prompt is detected.
-	err = streamUntilPrompt(conn)
+	err = streamUntilPrompt(conn, name)
 
 	// Reset terminal state that the REPL's startup may have changed.
 	resetTerminal()
@@ -256,23 +256,31 @@ func waitForSocket(name string, timeout time.Duration) (net.Conn, error) {
 }
 
 // streamUntilPrompt reads protocol messages from conn and writes output to
-// stdout until a PromptDetected or Exited message is received.
-func streamUntilPrompt(conn net.Conn) error {
+// stdout until a PromptDetected or Exited message is received. The trailing
+// partial line (the prompt) is held back and saved for the next continue.
+func streamUntilPrompt(conn net.Conn, name string) error {
+	var buf outputBuffer
+
 	for {
 		msg, err := protocol.ReadMessage(conn)
 		if err != nil {
+			buf.Flush()
 			return fmt.Errorf("read from daemon: %w", err)
 		}
 
 		switch msg.Type {
 		case protocol.MsgOutput, protocol.MsgBufferedOutput:
-			os.Stdout.Write(msg.Payload)
+			buf.Write(msg.Payload)
 		case protocol.MsgPromptDetected:
-			os.Stdout.WriteString("\n")
+			if p := buf.Partial(); p != "" {
+				session.SavePrompt(name, p)
+			}
 			return nil
 		case protocol.MsgExited:
+			buf.Flush()
 			return nil
 		case protocol.MsgError:
+			buf.Flush()
 			return fmt.Errorf("daemon error: %s", msg.Payload)
 		}
 	}

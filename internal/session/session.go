@@ -305,7 +305,29 @@ func GetLast() (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-// Cleanup removes a session's socket file and metadata file.
+// SavePrompt saves the detected prompt text for a session.
+func SavePrompt(name string, prompt string) error {
+	dir, err := EnsureBaseDir()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, name+".prompt"), []byte(prompt), 0o600)
+}
+
+// LoadPrompt returns the saved prompt text for a session, or empty if none.
+func LoadPrompt(name string) string {
+	dir, err := BaseDir()
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(dir, name+".prompt"))
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// Cleanup removes a session's socket file, metadata file, and prompt file.
 func Cleanup(name string) error {
 	dir, err := BaseDir()
 	if err != nil {
@@ -313,5 +335,6 @@ func Cleanup(name string) error {
 	}
 	os.Remove(filepath.Join(dir, name+".sock"))
 	os.Remove(filepath.Join(dir, name+".json"))
+	os.Remove(filepath.Join(dir, name+".prompt"))
 	return nil
 }

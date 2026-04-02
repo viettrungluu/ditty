@@ -72,7 +72,7 @@ All items below are implemented, tested, committed, and pushed.
 - [x] Socket path length fix (chdir + relative paths to avoid 108-byte limit)
 - [x] Clean error messages for missing/stale sessions
 - [x] `--idle-timeout` flag on `ditty start`
-- [x] `--echo` flag (default: on) with output-side echo stripping
+- [x] `--no-echo` flag for output-side echo stripping
 - [x] `--buffer-size` flag for ring buffer configuration
 - [x] Session metadata on disk (PID, command, start time; shown in `ditty list`)
 - [x] `--prompt=REGEX` for precise, zero-latency prompt detection

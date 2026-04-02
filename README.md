@@ -8,11 +8,28 @@ It runs an interactive program in the background and lets you send input and rec
 
 ## Install
 
+### Homebrew (macOS/Linux)
+
+```
+brew install viettrungluu/tap/ditty
+```
+
+### Go
+
 ```
 go install github.com/viettrungluu/ditty@latest
 ```
 
-Or build from source:
+### Pre-built binaries
+
+Download from the [releases page](https://github.com/viettrungluu/ditty/releases). On macOS, you'll need to remove the quarantine attribute after extracting:
+
+```
+tar xzf ditty-darwin-arm64.tar.gz
+xattr -d com.apple.quarantine ditty-darwin-arm64/ditty
+```
+
+### Build from source
 
 ```
 git clone https://github.com/viettrungluu/ditty.git

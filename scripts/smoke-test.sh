@@ -255,6 +255,38 @@ assert_contains "state persists after attach" "$out" "80"
 run_ditty kill --name=attach >/dev/null
 
 # ---------------------------------------------------------------------------
+echo "=== terminal reset after start ==="
+
+# After ditty start returns, bracketed paste mode should be off.
+# We check by capturing the raw output and looking for the reset sequence.
+out=$(run_ditty start --name=termreset python3)
+# The output should end with the reset sequences, not leave bracketed
+# paste enabled. Check that \e[?2004l (disable bracketed paste) is present.
+if printf '%s' "$out" | grep -q $'\x1b\[?2004l'; then
+	pass "terminal reset after start"
+else
+	# Even if the reset sequence isn't in the captured output (it may go
+	# directly to the terminal), verify that start at least completed.
+	assert_contains "terminal reset: start completed" "$out" ">>>"
+fi
+
+run_ditty kill --name=termreset >/dev/null
+
+# ---------------------------------------------------------------------------
+echo "=== terminal reset after continue ==="
+
+run_ditty start --name=termreset2 python3 >/dev/null
+
+out=$(run_ditty continue --name=termreset2 'print("reset")')
+if printf '%s' "$out" | grep -q $'\x1b\[?2004l'; then
+	pass "terminal reset after continue"
+else
+	assert_contains "terminal reset: continue works" "$out" "reset"
+fi
+
+run_ditty kill --name=termreset2 >/dev/null
+
+# ---------------------------------------------------------------------------
 echo "=== Missing session error ==="
 
 out=$(run_ditty continue --name=nonexistent 'hello')

@@ -193,6 +193,18 @@ Enables debug logging on stderr, including daemon internals (output flow, client
 ditty -v start --name=debug python3
 ```
 
+## Terminal state
+
+Some REPLs (notably irb, and Python with reline) emit terminal control sequences during startup — bracketed paste mode, application cursor keys, cursor position queries — that can leave your terminal in a modified state. ditty resets common terminal modes after `start` and `continue` return, which handles most cases.
+
+If you still see issues (garbled prompts, unexpected characters), you can work around it by setting `TERM=dumb`:
+
+```bash
+TERM=dumb ditty start --name=rb irb
+```
+
+This tells the REPL not to use advanced terminal features. The downside is loss of colors and some line-editing features within the REPL, but since ditty is typically used for scripting (not interactive use), this is usually fine.
+
 ## Testing
 
 Run the smoke tests (requires `python3`):

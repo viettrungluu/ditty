@@ -37,8 +37,8 @@ its initial output until the first prompt appears.`,
 		"session name (generated if omitted)")
 	cmd.Flags().DurationVar(&idleTimeout, "idle-timeout", 0,
 		"prompt detection idle timeout (e.g., 200ms, 1s); 0 means default")
-	cmd.Flags().BoolVar(&echo, "echo", false,
-		"echo input back in output (default: no echo)")
+	cmd.Flags().BoolVar(&echo, "echo", true,
+		"echo input back in output")
 	cmd.Flags().IntVar(&bufSize, "buffer-size", 0,
 		"background output ring buffer size in bytes (default: 1MB)")
 	cmd.Flags().StringVar(&promptPattern, "prompt", "",
@@ -84,8 +84,8 @@ func runStart(name string, idleTimeout time.Duration, echo bool, bufSize int, pr
 		daemonArgs = append(daemonArgs, "--idle-timeout",
 			idleTimeout.String())
 	}
-	if echo {
-		daemonArgs = append(daemonArgs, "--echo")
+	if !echo {
+		daemonArgs = append(daemonArgs, "--echo=false")
 	}
 	if bufSize > 0 {
 		daemonArgs = append(daemonArgs, "--buffer-size",

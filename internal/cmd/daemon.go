@@ -49,7 +49,7 @@ func newDaemonCmd() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "session name")
 	cmd.Flags().DurationVar(&idleTimeout, "idle-timeout",
 		prompt.DefaultIdleTimeout, "prompt detection idle timeout")
-	cmd.Flags().BoolVar(&echo, "echo", false, "enable pty echo")
+	cmd.Flags().BoolVar(&echo, "echo", true, "echo input back in output")
 	cmd.Flags().IntVar(&bufSize, "buffer-size", 0,
 		"ring buffer size in bytes (0 means default)")
 	cmd.Flags().StringVar(&promptPattern, "prompt", "",

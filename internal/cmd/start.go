@@ -65,6 +65,11 @@ its initial output until the first prompt appears.`,
 	cmd.Flags().StringVar(&presetsFile, "presets-file", "",
 		"path to presets file (default: ~/.ditty/presets)")
 
+	// Stop parsing flags after the first positional arg (the program name),
+	// so that flags intended for the program (e.g., python3 -i) aren't
+	// consumed by ditty.
+	cmd.Flags().SetInterspersed(false)
+
 	return cmd
 }
 

@@ -63,5 +63,7 @@ func newDaemonCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&suspend, "suspend", false,
 		"SIGSTOP the child between commands")
 
+	cmd.Flags().SetInterspersed(false)
+
 	return cmd
 }

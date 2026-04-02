@@ -178,6 +178,25 @@ assert_contains "no-pty cat echoes" "$out" "hello pipes"
 run_ditty kill --name=nopty >/dev/null
 
 # ---------------------------------------------------------------------------
+echo "=== preset auto-detection ==="
+
+# python3 should auto-detect without --prompt.
+run_ditty start --name=preset python3 >/dev/null
+
+out=$(run_ditty continue --name=preset 'print("preset")')
+assert_contains "preset auto-detects python" "$out" "preset"
+
+run_ditty kill --name=preset >/dev/null
+
+# --no-preset should fall back to idle timeout (still works, just slower).
+run_ditty start --name=nopreset --no-preset python3 >/dev/null
+
+out=$(run_ditty continue --name=nopreset 'print("fallback")')
+assert_contains "no-preset falls back" "$out" "fallback"
+
+run_ditty kill --name=nopreset >/dev/null
+
+# ---------------------------------------------------------------------------
 echo "=== --suspend ==="
 
 run_ditty start --name=suspend --suspend python3 >/dev/null

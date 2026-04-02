@@ -1,5 +1,7 @@
 # ditty
 
+[![CI](https://github.com/viettrungluu/ditty/actions/workflows/ci.yml/badge.svg)](https://github.com/viettrungluu/ditty/actions/workflows/ci.yml)
+
 **ditty** ("de-TTY") converts line-interactive programs (REPLs, debuggers, etc.) into command-line programs.
 
 It runs an interactive program in the background and lets you send input and receive output through simple CLI commands, making it easy to script interactions with programs like `python3`, `gdb`, `lldb`, and others.

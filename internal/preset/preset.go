@@ -62,7 +62,7 @@ var builtins = []Entry{
 		CommandRegexes: []*regexp.Regexp{
 			regexp.MustCompile(`^gdb( |$)`),
 		},
-		Flags: `--prompt='\(gdb\) $'`,
+		Flags: `--prompt='\(gdb\) $' --env=TERM=dumb`,
 	},
 	{
 		Name: "lldb",
